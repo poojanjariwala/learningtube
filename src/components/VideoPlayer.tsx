@@ -132,23 +132,33 @@ export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack }: VideoP
       {/* Video Player */}
       <Card className="overflow-hidden bg-black">
         <div ref={playerRef} className="relative bg-black">
-          {/* Placeholder video - In real implementation, this would be the downloaded video */}
-          <div className="relative aspect-video bg-black flex items-center justify-center">
-            <img 
-              src={video.thumbnail} 
-              alt={video.title}
-              className="w-full h-full object-cover opacity-50"
-            />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-white text-center">
-                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-8">
-                  <Play className="w-16 h-16 mx-auto mb-4 text-white" />
-                  <p className="text-lg font-medium">Video Player</p>
-                  <p className="text-sm opacity-75 mt-2">
-                    In production, the downloaded YouTube video would play here
-                  </p>
+          {/* YouTube Embed Player */}
+          <div className="relative aspect-video bg-black">
+            {/* In a real implementation, this would be an embedded YouTube player */}
+            <div className="relative w-full h-full">
+              <img 
+                src={video.thumbnail} 
+                alt={video.title}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <div className="bg-primary/90 text-primary-foreground p-4 rounded-full shadow-lg cursor-pointer hover:bg-primary transition-colors" onClick={togglePlay}>
+                  {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
                 </div>
               </div>
+              {isPlaying && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+                      <Play className="w-12 h-12 mx-auto mb-3 text-white animate-pulse" />
+                      <p className="text-lg font-medium">Playing: {video.title}</p>
+                      <p className="text-sm opacity-75 mt-2">
+                        In production, the actual video would play here
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

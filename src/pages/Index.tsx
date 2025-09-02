@@ -39,40 +39,62 @@ const Index = () => {
   const generateMockCourse = (url: string, type: 'video' | 'playlist'): Course => {
     console.log('Generating mock course for:', { url, type });
     
+    // Extract video ID from URL for thumbnail generation
+    const getVideoId = (url: string): string => {
+      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&\n?#]+)/);
+      return match ? match[1] : 'dQw4w9WgXcQ'; // fallback ID
+    };
+    
+    const videoId = getVideoId(url);
+    const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+    
+    // Generate realistic titles based on the URL
+    const getRealisticTitle = (url: string, type: 'video' | 'playlist'): string => {
+      if (url.includes('PLu0W_9lII9agq5TrH9XLIKQvv0iaF2X3w')) {
+        return 'Python Tutorial for Beginners | Full Course';
+      }
+      if (url.includes('BGeDBfCIqas')) {
+        return 'React.js Course for Beginners – 2021 Tutorial';
+      }
+      return type === 'playlist' ? 'Complete Course Playlist' : 'Video Tutorial';
+    };
+    
+    const courseTitle = getRealisticTitle(url, type);
+    
     const mockVideos: Video[] = type === 'playlist' ? [
       {
         id: '1',
-        title: 'Introduction to React Hooks',
-        thumbnail: '/placeholder.svg',
+        title: 'Introduction and Setup',
+        thumbnail: thumbnailUrl,
         duration: '12:34',
-        completed: true
+        completed: false
       },
       {
         id: '2', 
-        title: 'useState and useEffect Deep Dive',
-        thumbnail: '/placeholder.svg',
+        title: 'Getting Started with Basics',
+        thumbnail: thumbnailUrl,
         duration: '18:22',
-        completed: true
+        completed: false
       },
       {
         id: '3',
-        title: 'Custom Hooks and Performance',
-        thumbnail: '/placeholder.svg',
+        title: 'Intermediate Concepts',
+        thumbnail: thumbnailUrl,
         duration: '15:45',
         completed: false
       },
       {
         id: '4',
-        title: 'Advanced React Patterns',
-        thumbnail: '/placeholder.svg',
+        title: 'Advanced Topics',
+        thumbnail: thumbnailUrl,
         duration: '22:18',
         completed: false
       }
     ] : [
       {
         id: '1',
-        title: url.includes('react') ? 'React Complete Tutorial' : 'Single Video Course',
-        thumbnail: '/placeholder.svg',
+        title: courseTitle,
+        thumbnail: thumbnailUrl,
         duration: '45:32',
         completed: false
       }
@@ -83,10 +105,8 @@ const Index = () => {
 
     return {
       id: Date.now().toString(),
-      title: type === 'playlist' 
-        ? 'Complete React Hooks Masterclass'
-        : 'React Tutorial - Complete Guide',
-      thumbnail: mockVideos[0].thumbnail,
+      title: courseTitle,
+      thumbnail: thumbnailUrl,
       type,
       duration: type === 'video' ? mockVideos[0].duration : '1h 8m',
       videoCount: type === 'playlist' ? mockVideos.length : undefined,
@@ -255,16 +275,6 @@ const Index = () => {
       <section id="course-input" className="py-20 px-6">
         <div className="max-w-2xl mx-auto">
           <CourseUrlInput onUrlSubmit={handleUrlSubmit} />
-        </div>
-      </section>
-
-      {/* Debug Section - Remove this after fixing */}
-      <section className="py-4 px-6 bg-yellow-50 border-y border-yellow-200">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-sm text-yellow-800">
-            Debug: Courses array length: {courses.length} | 
-            Courses: {JSON.stringify(courses.map(c => ({ id: c.id, title: c.title })))}
-          </p>
         </div>
       </section>
 
