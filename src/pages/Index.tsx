@@ -34,32 +34,34 @@ const Index = () => {
 
   // Mock data generator for demo
   const generateMockCourse = (url: string, type: 'video' | 'playlist'): Course => {
+    console.log('Generating mock course for:', { url, type });
+    
     const mockVideos: Video[] = type === 'playlist' ? [
       {
         id: '1',
         title: 'Introduction to React Hooks',
-        thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=225&fit=crop&crop=faces',
+        thumbnail: '/placeholder.svg',
         duration: '12:34',
         completed: true
       },
       {
         id: '2', 
         title: 'useState and useEffect Deep Dive',
-        thumbnail: 'https://images.unsplash.com/photo-1627398242454-45a1465c2479?w=400&h=225&fit=crop&crop=faces',
+        thumbnail: '/placeholder.svg',
         duration: '18:22',
         completed: true
       },
       {
         id: '3',
         title: 'Custom Hooks and Performance',
-        thumbnail: 'https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=400&h=225&fit=crop&crop=faces',
+        thumbnail: '/placeholder.svg',
         duration: '15:45',
         completed: false
       },
       {
         id: '4',
         title: 'Advanced React Patterns',
-        thumbnail: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=225&fit=crop&crop=faces',
+        thumbnail: '/placeholder.svg',
         duration: '22:18',
         completed: false
       }
@@ -67,7 +69,7 @@ const Index = () => {
       {
         id: '1',
         title: url.includes('react') ? 'React Complete Tutorial' : 'Single Video Course',
-        thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=225&fit=crop&crop=faces',
+        thumbnail: '/placeholder.svg',
         duration: '45:32',
         completed: false
       }
@@ -91,8 +93,14 @@ const Index = () => {
   };
 
   const handleUrlSubmit = (url: string, type: 'video' | 'playlist') => {
+    console.log('handleUrlSubmit called with:', { url, type });
     const newCourse = generateMockCourse(url, type);
-    setCourses(prev => [newCourse, ...prev]);
+    console.log('Generated course:', newCourse);
+    setCourses(prev => {
+      const updated = [newCourse, ...prev];
+      console.log('Updated courses array:', updated);
+      return updated;
+    });
   };
 
   const handleCourseClick = (course: Course) => {
@@ -248,7 +256,11 @@ const Index = () => {
       </section>
 
       {/* Courses Grid */}
-      {courses.length > 0 && (
+      {(() => {
+        console.log('Rendering courses section. Current courses:', courses);
+        console.log('Courses length:', courses.length);
+        return courses.length > 0;
+      })() && (
         <section className="py-20 px-6">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
