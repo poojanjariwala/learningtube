@@ -32,6 +32,9 @@ const Index = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
 
+  // Debug state changes
+  console.log('Index component render - courses state:', courses);
+
   // Mock data generator for demo
   const generateMockCourse = (url: string, type: 'video' | 'playlist'): Course => {
     console.log('Generating mock course for:', { url, type });
@@ -255,12 +258,18 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Debug Section - Remove this after fixing */}
+      <section className="py-4 px-6 bg-yellow-50 border-y border-yellow-200">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-sm text-yellow-800">
+            Debug: Courses array length: {courses.length} | 
+            Courses: {JSON.stringify(courses.map(c => ({ id: c.id, title: c.title })))}
+          </p>
+        </div>
+      </section>
+
       {/* Courses Grid */}
-      {(() => {
-        console.log('Rendering courses section. Current courses:', courses);
-        console.log('Courses length:', courses.length);
-        return courses.length > 0;
-      })() && (
+      {courses.length > 0 && (
         <section className="py-20 px-6">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
