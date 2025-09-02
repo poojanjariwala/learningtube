@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { CelebrationModal } from '@/components/CelebrationModal';
 import { 
   ChevronLeft,
   Check
@@ -22,6 +23,7 @@ interface VideoPlayerProps {
   playlist?: Video[];
   onVideoComplete: (videoId: string, watchPercentage: number) => void;
   onBack: () => void;
+  userProfile?: any;
 }
 
 declare global {
@@ -31,11 +33,14 @@ declare global {
   }
 }
 
-export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack }: VideoPlayerProps) => {
+export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack, userProfile }: VideoPlayerProps) => {
   const [player, setPlayer] = useState<any>(null);
   const [watchTime, setWatchTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [watchPercentage, setWatchPercentage] = useState(0);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationData, setCelebrationData] = useState<any>(null);
+  const [progressMilestones, setProgressMilestones] = useState(new Set<number>());
   const playerRef = useRef<HTMLDivElement>(null);
 
   const currentVideoIndex = playlist?.findIndex(v => v.id === video.id) ?? 0;
@@ -121,11 +126,22 @@ export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack }: VideoP
           const percentage = Math.min((currentTime / videoDuration) * 100, 100);
           setWatchPercentage(percentage);
           
-          // Auto-complete when 90% watched
-          if (percentage >= 90 && !video.completed) {
-            onVideoComplete(video.id, percentage);
-            clearInterval(interval);
-          }
+          // Check for progress milestones (30%, 50%, 90%)
+          const milestones = [30, 50, 90];
+          milestones.forEach(milestone => {
+            if (percentage >= milestone && !progressMilestones.has(milestone)) {
+              setProgressMilestones(prev => new Set([...prev, milestone]));
+              
+              if (milestone === 90 && !video.completed) {
+                // Complete the video
+                handleProgressUpdate(percentage, true);
+                clearInterval(interval);
+              } else if (milestone < 90) {
+                // Show progress celebration
+                handleProgressUpdate(percentage, false);
+              }
+            }
+          });
         }
       }
     }, 1000);
@@ -143,8 +159,24 @@ export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack }: VideoP
 
   const handleVideoEnd = () => {
     if (!video.completed) {
-      onVideoComplete(video.id, 100);
+      handleProgressUpdate(100, true);
     }
+  };
+
+  const handleProgressUpdate = async (percentage: number, isCompletion: boolean) => {
+    if (isCompletion) {
+      await onVideoComplete(video.id, percentage);
+    }
+    
+    // Show celebration modal
+    setCelebrationData({
+      pointsEarned: isCompletion ? 100 : Math.floor(percentage * 0.5),
+      totalPoints: (userProfile?.points || 0) + (isCompletion ? 100 : Math.floor(percentage * 0.5)),
+      currentStreak: userProfile?.current_streak || 0,
+      videoTitle: video.title,
+      watchPercentage: percentage
+    });
+    setShowCelebration(true);
   };
 
   const formatTime = (seconds: number) => {
@@ -154,10 +186,14 @@ export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack }: VideoP
   };
 
   useEffect(() => {
+    // Reset progress milestones when video changes
+    setProgressMilestones(new Set());
+    setWatchPercentage(0);
+    
     return () => {
       stopTracking();
     };
-  }, []);
+  }, [video.id]);
 
   return (
     <div className="space-y-6">
@@ -241,6 +277,19 @@ export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack }: VideoP
           </div>
         )}
       </div>
+
+      {/* Celebration Modal */}
+      {celebrationData && (
+        <CelebrationModal
+          isOpen={showCelebration}
+          onClose={() => setShowCelebration(false)}
+          pointsEarned={celebrationData.pointsEarned}
+          totalPoints={celebrationData.totalPoints}
+          currentStreak={celebrationData.currentStreak}
+          videoTitle={celebrationData.videoTitle}
+          watchPercentage={celebrationData.watchPercentage}
+        />
+      )}
     </div>
   );
 };

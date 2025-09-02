@@ -287,6 +287,7 @@ const Index = () => {
             playlist={selectedCourse?.videos}
             onVideoComplete={handleVideoComplete}
             onBack={handleBack}
+            userProfile={userProfile}
           />
         </div>
       </div>
