@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CourseUrlInput } from '@/components/CourseUrlInput';
 import { CourseCard } from '@/components/CourseCard';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { PlaylistView } from '@/components/PlaylistView';
 import { Button } from '@/components/ui/button';
-import { GraduationCap, BookOpen, Video, Users } from 'lucide-react';
+import { GraduationCap, BookOpen, Video, Users, LogOut, User, Trophy, Flame } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import heroImage from '@/assets/hero-image.jpg';
 
 interface Video {
@@ -13,6 +19,7 @@ interface Video {
   thumbnail: string;
   duration: string;
   completed: boolean;
+  youtube_video_id?: string;
 }
 
 interface Course {
@@ -27,103 +34,151 @@ interface Course {
 }
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
   const [currentView, setCurrentView] = useState<'dashboard' | 'player' | 'playlist'>('dashboard');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Debug state changes
-  console.log('Index component render - courses state:', courses);
+  // Check authentication
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
 
-  // Mock data generator for demo
-  const generateMockCourse = (url: string, type: 'video' | 'playlist'): Course => {
-    console.log('Generating mock course for:', { url, type });
-    
-    // Extract video ID from URL for thumbnail generation
-    const getVideoId = (url: string): string => {
-      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&\n?#]+)/);
-      return match ? match[1] : 'dQw4w9WgXcQ'; // fallback ID
-    };
-    
-    const videoId = getVideoId(url);
-    const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
-    
-    // Generate realistic titles based on the URL
-    const getRealisticTitle = (url: string, type: 'video' | 'playlist'): string => {
-      if (url.includes('PLu0W_9lII9agq5TrH9XLIKQvv0iaF2X3w')) {
-        return 'Python Tutorial for Beginners | Full Course';
-      }
-      if (url.includes('BGeDBfCIqas')) {
-        return 'React.js Course for Beginners – 2021 Tutorial';
-      }
-      return type === 'playlist' ? 'Complete Course Playlist' : 'Video Tutorial';
-    };
-    
-    const courseTitle = getRealisticTitle(url, type);
-    
-    const mockVideos: Video[] = type === 'playlist' ? [
-      {
-        id: '1',
-        title: 'Introduction and Setup',
-        thumbnail: thumbnailUrl,
-        duration: '12:34',
-        completed: false
-      },
-      {
-        id: '2', 
-        title: 'Getting Started with Basics',
-        thumbnail: thumbnailUrl,
-        duration: '18:22',
-        completed: false
-      },
-      {
-        id: '3',
-        title: 'Intermediate Concepts',
-        thumbnail: thumbnailUrl,
-        duration: '15:45',
-        completed: false
-      },
-      {
-        id: '4',
-        title: 'Advanced Topics',
-        thumbnail: thumbnailUrl,
-        duration: '22:18',
-        completed: false
-      }
-    ] : [
-      {
-        id: '1',
-        title: courseTitle,
-        thumbnail: thumbnailUrl,
-        duration: '45:32',
-        completed: false
-      }
-    ];
+  // Load user data and courses
+  useEffect(() => {
+    if (user) {
+      loadUserData();
+      loadCourses();
+    }
+  }, [user]);
 
-    const completedCount = mockVideos.filter(v => v.completed).length;
-    const progress = (completedCount / mockVideos.length) * 100;
+  const loadUserData = async () => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user!.id)
+        .single();
 
-    return {
-      id: Date.now().toString(),
-      title: courseTitle,
-      thumbnail: thumbnailUrl,
-      type,
-      duration: type === 'video' ? mockVideos[0].duration : '1h 8m',
-      videoCount: type === 'playlist' ? mockVideos.length : undefined,
-      progress: Math.round(progress),
-      videos: mockVideos
-    };
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
   };
 
-  const handleUrlSubmit = (url: string, type: 'video' | 'playlist') => {
-    console.log('handleUrlSubmit called with:', { url, type });
-    const newCourse = generateMockCourse(url, type);
-    console.log('Generated course:', newCourse);
-    setCourses(prev => {
-      const updated = [newCourse, ...prev];
-      console.log('Updated courses array:', updated);
-      return updated;
-    });
+  const loadCourses = async () => {
+    try {
+      const { data: coursesData, error } = await supabase
+        .from('courses')
+        .select(`
+          id,
+          title,
+          thumbnail_url,
+          duration_minutes,
+          instructor_id,
+          youtube_playlist_id,
+          lessons (
+            id,
+            title,
+            video_url,
+            youtube_video_id,
+            duration_minutes,
+            order_index,
+            user_progress (
+              id,
+              completed_at
+            )
+          )
+        `)
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedCourses = coursesData?.map(course => {
+        const lessons = course.lessons || [];
+        const completedLessons = lessons.filter(lesson => 
+          lesson.user_progress && lesson.user_progress.length > 0
+        ).length;
+        
+        const videos = lessons
+          .sort((a, b) => a.order_index - b.order_index)
+          .map(lesson => ({
+            id: lesson.id,
+            title: lesson.title,
+            thumbnail: `https://img.youtube.com/vi/${lesson.youtube_video_id}/maxresdefault.jpg`,
+            duration: `${lesson.duration_minutes}m`,
+            completed: lesson.user_progress && lesson.user_progress.length > 0,
+            youtube_video_id: lesson.youtube_video_id
+          }));
+
+        const progress = lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0;
+
+        return {
+          id: course.id,
+          title: course.title,
+          thumbnail: course.thumbnail_url || (videos[0]?.thumbnail || ''),
+          type: course.youtube_playlist_id ? 'playlist' : 'video' as 'video' | 'playlist',
+          duration: `${course.duration_minutes}m`,
+          videoCount: lessons.length,
+          progress,
+          videos
+        };
+      }) || [];
+
+      setCourses(formattedCourses);
+    } catch (error) {
+      console.error('Error loading courses:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load courses. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUrlSubmit = async (url: string, type: 'video' | 'playlist') => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('youtube-integration', {
+        body: {
+          action: 'fetchCourse',
+          url,
+          type
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Course added!",
+        description: "Your YouTube course has been successfully imported.",
+      });
+
+      // Reload courses
+      loadCourses();
+    } catch (error: any) {
+      console.error('Error adding course:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add course. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCourseClick = (course: Course) => {
@@ -141,24 +196,44 @@ const Index = () => {
     setCurrentView('player');
   };
 
-  const handleVideoComplete = (videoId: string) => {
-    if (!selectedCourse) return;
+  const handleVideoComplete = async (videoId: string) => {
+    if (!user || !selectedCourse) return;
     
-    const updatedVideos = selectedCourse.videos!.map(v => 
-      v.id === videoId ? { ...v, completed: true } : v
-    );
-    
-    const completedCount = updatedVideos.filter(v => v.completed).length;
-    const progress = (completedCount / updatedVideos.length) * 100;
-    
-    const updatedCourse = {
-      ...selectedCourse,
-      videos: updatedVideos,
-      progress: Math.round(progress)
-    };
-    
-    setSelectedCourse(updatedCourse);
-    setCourses(prev => prev.map(c => c.id === selectedCourse.id ? updatedCourse : c));
+    try {
+      const { error } = await supabase.functions.invoke('youtube-integration', {
+        body: {
+          action: 'markComplete',
+          lessonId: videoId,
+          watchPercentage: 100
+        }
+      });
+
+      if (error) throw error;
+
+      // Update local state
+      const updatedVideos = selectedCourse.videos!.map(v => 
+        v.id === videoId ? { ...v, completed: true } : v
+      );
+      
+      const completedCount = updatedVideos.filter(v => v.completed).length;
+      const progress = (completedCount / updatedVideos.length) * 100;
+      
+      const updatedCourse = {
+        ...selectedCourse,
+        videos: updatedVideos,
+        progress: Math.round(progress)
+      };
+      
+      setSelectedCourse(updatedCourse);
+      setCourses(prev => prev.map(c => c.id === selectedCourse.id ? updatedCourse : c));
+
+      toast({
+        title: "Progress saved!",
+        description: "Your learning progress has been updated.",
+      });
+    } catch (error) {
+      console.error('Error marking video as complete:', error);
+    }
   };
 
   const handleBack = () => {
@@ -166,6 +241,26 @@ const Index = () => {
     setSelectedCourse(null);
     setSelectedVideo(null);
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <GraduationCap className="h-12 w-12 text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   if (currentView === 'player' && selectedVideo) {
     return (
@@ -200,6 +295,56 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Header with user info */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 p-2 rounded-lg">
+                <GraduationCap className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-xl font-bold text-foreground">LearnTube</h1>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {userProfile && (
+                <Card className="bg-card/80">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                          {userProfile.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Trophy className="h-4 w-4 text-yellow-500" />
+                          <span className="font-medium">{userProfile.points || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Flame className="h-4 w-4 text-orange-500" />
+                          <span className="font-medium">{userProfile.current_streak || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSignOut}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-accent/5 to-background"></div>
@@ -262,7 +407,7 @@ const Index = () => {
                   </div>
                   <div>
                     <div className="font-medium text-foreground">Course Progress</div>
-                    <div className="text-muted-foreground">67% Complete</div>
+                    <div className="text-muted-foreground">Track Your Learning</div>
                   </div>
                 </div>
               </div>
@@ -274,7 +419,7 @@ const Index = () => {
       {/* Course Input Section */}
       <section id="course-input" className="py-20 px-6">
         <div className="max-w-2xl mx-auto">
-          <CourseUrlInput onUrlSubmit={handleUrlSubmit} />
+          <CourseUrlInput onUrlSubmit={handleUrlSubmit} isLoading={isSubmitting} />
         </div>
       </section>
 
@@ -301,6 +446,26 @@ const Index = () => {
                   onClick={() => handleCourseClick(course)}
                 />
               ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {courses.length === 0 && (
+        <section className="py-20 px-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="bg-muted/30 rounded-2xl p-12">
+              <BookOpen className="h-16 w-16 text-muted-foreground/50 mx-auto mb-6" />
+              <h3 className="text-xl font-semibold text-foreground mb-4">No courses yet</h3>
+              <p className="text-muted-foreground mb-6">
+                Add your first YouTube video or playlist to get started with your learning journey.
+              </p>
+              <Button 
+                onClick={() => document.getElementById('course-input')?.scrollIntoView({ behavior: 'smooth' })}
+                className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
+              >
+                Add Your First Course
+              </Button>
             </div>
           </div>
         </section>

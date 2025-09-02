@@ -21,6 +21,7 @@ interface Video {
   thumbnail: string;
   duration: string;
   completed: boolean;
+  youtube_video_id?: string;
 }
 
 interface VideoPlayerProps {
@@ -134,32 +135,31 @@ export const VideoPlayer = ({ video, playlist, onVideoComplete, onBack }: VideoP
         <div ref={playerRef} className="relative bg-black">
           {/* YouTube Embed Player */}
           <div className="relative aspect-video bg-black">
-            {/* In a real implementation, this would be an embedded YouTube player */}
-            <div className="relative w-full h-full">
-              <img 
-                src={video.thumbnail} 
-                alt={video.title}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <div className="bg-primary/90 text-primary-foreground p-4 rounded-full shadow-lg cursor-pointer hover:bg-primary transition-colors" onClick={togglePlay}>
-                  {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
-                </div>
-              </div>
-              {isPlaying && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <div className="text-white text-center">
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-                      <Play className="w-12 h-12 mx-auto mb-3 text-white animate-pulse" />
-                      <p className="text-lg font-medium">Playing: {video.title}</p>
-                      <p className="text-sm opacity-75 mt-2">
-                        In production, the actual video would play here
-                      </p>
-                    </div>
+            {video.youtube_video_id ? (
+              <iframe
+                width="100%"
+                height="100%"
+                src={`https://www.youtube.com/embed/${video.youtube_video_id}?autoplay=0&rel=0&modestbranding=1&controls=1`}
+                title={video.title}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+              ></iframe>
+            ) : (
+              <div className="relative w-full h-full">
+                <img 
+                  src={video.thumbnail} 
+                  alt={video.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                  <div className="bg-primary/90 text-primary-foreground p-4 rounded-full shadow-lg cursor-pointer hover:bg-primary transition-colors" onClick={togglePlay}>
+                    {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Video element (hidden - used for demo controls) */}

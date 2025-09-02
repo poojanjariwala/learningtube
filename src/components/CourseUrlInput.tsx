@@ -7,11 +7,11 @@ import { useToast } from '@/hooks/use-toast';
 
 interface CourseUrlInputProps {
   onUrlSubmit: (url: string, type: 'video' | 'playlist') => void;
+  isLoading?: boolean;
 }
 
-export const CourseUrlInput = ({ onUrlSubmit }: CourseUrlInputProps) => {
+export const CourseUrlInput = ({ onUrlSubmit, isLoading = false }: CourseUrlInputProps) => {
   const [url, setUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const detectUrlType = (url: string): 'video' | 'playlist' | null => {
@@ -20,7 +20,7 @@ export const CourseUrlInput = ({ onUrlSubmit }: CourseUrlInputProps) => {
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!url.trim()) {
@@ -41,26 +41,9 @@ export const CourseUrlInput = ({ onUrlSubmit }: CourseUrlInputProps) => {
       });
       return;
     }
-
-    setIsLoading(true);
     
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate processing
-      onUrlSubmit(url, urlType);
-      toast({
-        title: "Course Created!",
-        description: `Successfully imported ${urlType === 'playlist' ? 'playlist' : 'video'} as course`,
-      });
-      setUrl('');
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to process URL. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    onUrlSubmit(url, urlType);
+    setUrl('');
   };
 
   return (
