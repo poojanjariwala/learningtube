@@ -79,6 +79,15 @@ const Index = () => {
 
   const loadCourses = async () => {
     try {
+      // Only load courses for the current user
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user!.id)
+        .single();
+
+      if (!profile) return;
+
       const { data: coursesData, error } = await supabase
         .from('courses')
         .select(`
@@ -101,7 +110,7 @@ const Index = () => {
             )
           )
         `)
-        .eq('is_published', true)
+        .eq('instructor_id', profile.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
