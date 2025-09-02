@@ -278,7 +278,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border bg-muted/30 py-8 px-6">
         <div className="max-w-7xl mx-auto text-center text-muted-foreground">
-          <p>Transform your YouTube learning experience into structured courses.</p>
+          <p>Transform your YouTube learning experience into structured, ad-free courses.</p>
         </div>
       </footer>
     </div>
