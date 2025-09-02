@@ -32,9 +32,11 @@ serve(async (req) => {
       throw new Error('Invalid authentication');
     }
 
-    const { action, url, courseId } = await req.json();
+    const requestBody = await req.json();
+    const { action } = requestBody;
 
     if (action === 'fetchCourse') {
+      const { url, type } = requestBody;
       // Extract video/playlist ID from URL
       const videoMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
       const playlistMatch = url.match(/(?:youtube\.com\/playlist\?list=)([^&\n?#]+)/);
@@ -128,7 +130,7 @@ serve(async (req) => {
     }
 
     if (action === 'markComplete') {
-      const { lessonId, watchPercentage = 100 } = await req.json();
+      const { lessonId, watchPercentage = 100 } = requestBody;
       
       // Check if progress already exists
       const { data: existingProgress } = await supabase

@@ -4,7 +4,11 @@ import { CourseUrlInput } from '@/components/CourseUrlInput';
 import { CourseCard } from '@/components/CourseCard';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { PlaylistView } from '@/components/PlaylistView';
+import { Leaderboard } from '@/components/Leaderboard';
+import { ProfilePage } from '@/components/ProfilePage';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GraduationCap, BookOpen, Video, Users, LogOut, User, Trophy, Flame } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,7 +42,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'player' | 'playlist'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'player' | 'playlist' | 'profile'>('dashboard');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -196,7 +200,7 @@ const Index = () => {
     setCurrentView('player');
   };
 
-  const handleVideoComplete = async (videoId: string) => {
+  const handleVideoComplete = async (videoId: string, watchPercentage: number) => {
     if (!user || !selectedCourse) return;
     
     try {
@@ -204,7 +208,7 @@ const Index = () => {
         body: {
           action: 'markComplete',
           lessonId: videoId,
-          watchPercentage: 100
+          watchPercentage: Math.round(watchPercentage)
         }
       });
 
@@ -227,12 +231,20 @@ const Index = () => {
       setSelectedCourse(updatedCourse);
       setCourses(prev => prev.map(c => c.id === selectedCourse.id ? updatedCourse : c));
 
+      // Reload user data to update points and streak
+      loadUserData();
+
       toast({
         title: "Progress saved!",
-        description: "Your learning progress has been updated.",
+        description: `Video completed at ${Math.round(watchPercentage)}% progress. Points earned!`,
       });
     } catch (error) {
       console.error('Error marking video as complete:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save progress. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -240,6 +252,10 @@ const Index = () => {
     setCurrentView('dashboard');
     setSelectedCourse(null);
     setSelectedVideo(null);
+  };
+
+  const handleProfileView = () => {
+    setCurrentView('profile');
   };
 
   const handleSignOut = async () => {
@@ -293,6 +309,10 @@ const Index = () => {
     );
   }
 
+  if (currentView === 'profile') {
+    return <ProfilePage onBack={handleBack} />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header with user info */}
@@ -308,7 +328,7 @@ const Index = () => {
             
             <div className="flex items-center gap-4">
               {userProfile && (
-                <Card className="bg-card/80">
+                <Card className="bg-card/80 cursor-pointer hover:bg-card/90 transition-colors" onClick={handleProfileView}>
                   <CardContent className="p-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
@@ -330,6 +350,8 @@ const Index = () => {
                   </CardContent>
                 </Card>
               )}
+              
+              <ThemeToggle />
               
               <Button
                 variant="outline"
@@ -423,53 +445,73 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Courses Grid */}
-      {courses.length > 0 && (
-        <section className="py-20 px-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-foreground mb-4">Your Courses</h2>
-              <p className="text-muted-foreground">Continue your learning journey</p>
-            </div>
+      {/* Main Content */}
+      <section className="py-12 px-6">
+        <div className="max-w-7xl mx-auto">
+          <Tabs defaultValue="courses" className="w-full">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+              <TabsTrigger value="courses" className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                My Courses
+              </TabsTrigger>
+              <TabsTrigger value="leaderboard" className="flex items-center gap-2">
+                <Trophy className="w-4 h-4" />
+                Leaderboard
+              </TabsTrigger>
+            </TabsList>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {courses.map((course) => (
-                <CourseCard
-                  key={course.id}
-                  id={course.id}
-                  title={course.title}
-                  thumbnail={course.thumbnail}
-                  type={course.type}
-                  duration={course.duration}
-                  videoCount={course.videoCount}
-                  progress={course.progress}
-                  onClick={() => handleCourseClick(course)}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+            <TabsContent value="courses" className="space-y-8">
+              {courses.length > 0 ? (
+                <div>
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold text-foreground mb-4">Your Courses</h2>
+                    <p className="text-muted-foreground">Continue your learning journey</p>
+                  </div>
+                  
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {courses.map((course) => (
+                      <CourseCard
+                        key={course.id}
+                        id={course.id}
+                        title={course.title}
+                        thumbnail={course.thumbnail}
+                        type={course.type}
+                        duration={course.duration}
+                        videoCount={course.videoCount}
+                        progress={course.progress}
+                        onClick={() => handleCourseClick(course)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-2xl mx-auto text-center">
+                  <div className="bg-muted/30 rounded-2xl p-12">
+                    <BookOpen className="h-16 w-16 text-muted-foreground/50 mx-auto mb-6" />
+                    <h3 className="text-xl font-semibold text-foreground mb-4">No courses yet</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Add your first YouTube video or playlist to get started with your learning journey.
+                    </p>
+                    <Button 
+                      onClick={() => document.getElementById('course-input')?.scrollIntoView({ behavior: 'smooth' })}
+                      className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
+                    >
+                      Add Your First Course
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="leaderboard">
+              <div className="max-w-2xl mx-auto">
+                <Leaderboard />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </section>
 
-      {courses.length === 0 && (
-        <section className="py-20 px-6">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="bg-muted/30 rounded-2xl p-12">
-              <BookOpen className="h-16 w-16 text-muted-foreground/50 mx-auto mb-6" />
-              <h3 className="text-xl font-semibold text-foreground mb-4">No courses yet</h3>
-              <p className="text-muted-foreground mb-6">
-                Add your first YouTube video or playlist to get started with your learning journey.
-              </p>
-              <Button 
-                onClick={() => document.getElementById('course-input')?.scrollIntoView({ behavior: 'smooth' })}
-                className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
-              >
-                Add Your First Course
-              </Button>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Footer */}
       <footer className="border-t border-border bg-muted/30 py-8 px-6">
