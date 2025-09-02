@@ -61,7 +61,11 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				'course-progress': 'hsl(var(--course-progress))',
+				'course-progress-bg': 'hsl(var(--course-progress-bg))',
+				'course-card': 'hsl(var(--course-card))',
+				'course-card-hover': 'hsl(var(--course-card-hover))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

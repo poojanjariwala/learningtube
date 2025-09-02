@@ -8,33 +8,43 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 248 100% 99%;
+    --foreground: 224 15% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 224 15% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 224 15% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 234 89% 74%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 248 30% 96%;
+    --secondary-foreground: 224 15% 15%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 248 30% 96%;
+    --muted-foreground: 224 10% 50%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 265 85% 78%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 248 25% 90%;
+    --input: 248 25% 90%;
+    --ring: 234 89% 74%;
+
+    /* Course specific tokens */
+    --course-progress: 142 76% 36%;
+    --course-progress-bg: 142 20% 90%;
+    --course-card: 0 0% 100%;
+    --course-card-hover: 248 50% 98%;
+    --gradient-primary: linear-gradient(135deg, hsl(234 89% 74%), hsl(265 85% 78%));
+    --gradient-hero: linear-gradient(135deg, hsl(234 89% 74%) 0%, hsl(265 85% 78%) 100%);
+    --shadow-course: 0 4px 20px -2px hsl(234 89% 74% / 0.1);
+    --shadow-hover: 0 8px 30px -4px hsl(234 89% 74% / 0.15);
 
     --radius: 0.5rem;
 
