@@ -153,6 +153,78 @@ export type Database = {
           },
         ]
       }
+      notes: {
+        Row: {
+          content: string
+          course_id: string
+          created_at: string
+          id: string
+          lesson_id: string
+          timestamp_seconds: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          course_id: string
+          created_at?: string
+          id?: string
+          lesson_id: string
+          timestamp_seconds?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          timestamp_seconds?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      playlist_lessons: {
+        Row: {
+          added_at: string
+          id: string
+          lesson_id: string
+          order_index: number
+          playlist_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          lesson_id: string
+          order_index?: number
+          playlist_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          lesson_id?: string
+          order_index?: number
+          playlist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_lessons_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlist_lessons_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "user_playlists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -223,6 +295,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_playlists: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_progress: {
         Row: {
