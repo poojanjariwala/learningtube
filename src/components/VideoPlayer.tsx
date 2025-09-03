@@ -435,7 +435,14 @@ export const VideoPlayer = ({
                           ? 'bg-primary/10 border-primary'
                           : 'hover:bg-muted/50'
                       }`}
-                      onClick={() => window.location.reload()} // Simple navigation for now
+                      onClick={() => {
+                        if (onNextVideo && playlistVideo.id !== video.id) {
+                          const targetIndex = playlist.findIndex(v => v.id === playlistVideo.id);
+                          if (targetIndex > currentVideoIndex) {
+                            onNextVideo();
+                          }
+                        }
+                      }}
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-16 h-12 bg-muted rounded overflow-hidden flex-shrink-0">

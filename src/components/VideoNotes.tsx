@@ -68,7 +68,7 @@ export const VideoNotes = ({ lessonId, courseId, currentTime = 0 }: VideoNotesPr
   };
 
   const addNote = async () => {
-    if (!newNoteContent.trim()) return;
+    if (!newNoteContent.trim() || !lessonId || !courseId) return;
 
     try {
       const { data, error } = await supabase

@@ -100,41 +100,38 @@ export const Leaderboard = () => {
           leaders.map((user, index) => (
             <div
               key={user.id}
-              className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
+              className={`flex items-center gap-2 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-colors ${
                 index < 3 ? 'bg-muted/30' : 'hover:bg-muted/20'
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {getRankIcon(index + 1)}
-                <Badge variant={getRankBadgeVariant(index + 1)} className="min-w-[2rem] justify-center">
-                  {index + 1}
-                </Badge>
               </div>
               
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-primary text-primary-foreground">
+              <Avatar className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs sm:text-sm">
                   {user.full_name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
               
-              <div className="flex-1">
-                <p className="font-medium text-foreground">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground text-sm sm:text-base truncate">
                   {user.full_name || 'Anonymous User'}
                 </p>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Trophy className="w-3 h-3" />
-                    <span>{user.points} points</span>
+                    <span>{user.points} pts</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Flame className="w-3 h-3" />
-                    <span>{user.current_streak} day streak</span>
+                    <span>{user.current_streak} days</span>
                   </div>
                 </div>
               </div>
               
-              <div className="text-right">
-                <p className="text-lg font-bold text-foreground">{user.points}</p>
+              <div className="text-right flex-shrink-0">
+                <p className="text-base sm:text-lg font-bold text-foreground">{user.points}</p>
                 <p className="text-xs text-muted-foreground">points</p>
               </div>
             </div>
