@@ -318,12 +318,13 @@ const Index = () => {
         playlist={selectedCourse?.videos}
         onVideoComplete={handleVideoComplete}
         onBack={handleBack}
+        onVideoSelect={handleVideoSelect}
         onNextVideo={() => {
           if (selectedCourse?.videos) {
             const currentIndex = selectedCourse.videos.findIndex(v => v.id === selectedVideo.id);
             const nextVideo = selectedCourse.videos[currentIndex + 1];
             if (nextVideo) {
-              setSelectedVideo(nextVideo);
+              handleVideoSelect(nextVideo);
             }
           }
         }}
