@@ -228,6 +228,11 @@ const Index = () => {
     }
   };
 
+  const handleVideoSelect = (video: Video) => {
+    setSelectedVideo(video);
+    setCurrentView('player');
+  };
+
   const handleVideoComplete = async (videoId: string, watchPercentage: number, videoTitle: string) => {
     if (!user || !selectedCourse) return;
   
