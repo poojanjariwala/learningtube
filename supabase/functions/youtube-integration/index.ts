@@ -57,16 +57,30 @@ serve(async (req) => {
 
       // 10. Check for duplicates
       if (youtubeId) {
-        const queryCol = courseType === 'playlist' ? 'youtube_playlist_id' : 'youtube_video_id';
-        const { data: existingCourse, error: existingCourseError } = await supabaseAdmin
-          .from('courses')
-          .select('id')
-          .eq(queryCol, youtubeId)
-          .eq('instructor_id', profile.id)
-          .maybeSingle();
+        if (courseType === 'playlist') {
+            const { data: existingCourse, error: existingCourseError } = await supabaseAdmin
+              .from('courses')
+              .select('id')
+              .eq('youtube_playlist_id', youtubeId)
+              .eq('instructor_id', profile.id)
+              .maybeSingle();
 
-        if (existingCourseError) throw existingCourseError;
-        if (existingCourse) throw new Error('This course has already been added.');
+            if (existingCourseError) throw existingCourseError;
+            if (existingCourse) throw new Error('This course has already been added.');
+        } else { // courseType === 'video'
+            // Check if a course by this user exists that isn't a playlist and has a lesson with this video ID.
+            const { data: existingCourses, error: existingCoursesError } = await supabaseAdmin
+                .from('courses')
+                .select('id, lessons!inner(youtube_video_id)')
+                .eq('instructor_id', profile.id)
+                .is('youtube_playlist_id', null) // It's a single-video course
+                .eq('lessons.youtube_video_id', youtubeId)
+                .limit(1)
+                .maybeSingle();
+            
+            if (existingCoursesError) throw existingCoursesError;
+            if (existingCourses) throw new Error('This course has already been added.');
+        }
       }
       
       const { data: course, error: courseError } = await supabaseAdmin
@@ -78,7 +92,6 @@ serve(async (req) => {
           duration_minutes: courseData.duration,
           instructor_id: profile.id,
           youtube_playlist_id: courseType === 'playlist' ? youtubeId : null,
-          youtube_video_id: courseType === 'video' ? youtubeId : null, // Add this line
           youtube_channel_id: courseData.channelId,
           youtube_channel_name: courseData.channelName,
           is_published: true,
