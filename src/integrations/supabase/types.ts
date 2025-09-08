@@ -62,6 +62,7 @@ export type Database = {
           youtube_channel_id: string | null
           youtube_channel_name: string | null
           youtube_playlist_id: string | null
+          youtube_video_id: string | null
         }
         Insert: {
           created_at?: string
@@ -77,6 +78,7 @@ export type Database = {
           youtube_channel_id?: string | null
           youtube_channel_name?: string | null
           youtube_playlist_id?: string | null
+          youtube_video_id?: string | null
         }
         Update: {
           created_at?: string
@@ -92,6 +94,7 @@ export type Database = {
           youtube_channel_id?: string | null
           youtube_channel_name?: string | null
           youtube_playlist_id?: string | null
+          youtube_video_id?: string | null
         }
         Relationships: [
           {
