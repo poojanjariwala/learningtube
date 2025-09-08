@@ -237,7 +237,7 @@ const Index = () => {
     if (!user || !selectedCourse) return;
     
     try {
-      const { error } = await supabase.functions.invoke('youtube-integration', {
+      const { data, error } = await supabase.functions.invoke('youtube-integration', {
         body: {
           action: 'markComplete',
           lessonId: videoId,
@@ -245,19 +245,23 @@ const Index = () => {
           watchPercentage: Math.round(watchPercentage)
         }
       });
-      if (error) throw error;
+      if (error) {
+        console.error("Function invoke error:", error);
+        throw error;
+      }
       
       const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
-      setUserProfile(updatedProfile);
-
-      setCelebrationData({
-        pointsEarned: 100,
-        totalPoints: updatedProfile?.points,
-        currentStreak: updatedProfile?.current_streak,
-        videoTitle,
-        watchPercentage
-      });
-      setShowCelebration(true);
+      if(updatedProfile) {
+        setUserProfile(updatedProfile);
+        setCelebrationData({
+          pointsEarned: 100, // This can be dynamic in future
+          totalPoints: updatedProfile.points,
+          currentStreak: updatedProfile.current_streak,
+          videoTitle,
+          watchPercentage
+        });
+        setShowCelebration(true);
+      }
 
       await loadCourses();
 
@@ -270,6 +274,7 @@ const Index = () => {
       });
     }
   };
+
 
   const handleBack = () => {
     loadCourses(); // Refresh courses on back
