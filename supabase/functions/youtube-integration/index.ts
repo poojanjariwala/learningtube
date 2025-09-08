@@ -119,19 +119,16 @@ serve(async (req) => {
     if (action === 'markComplete') {
         const { lessonId, courseId, watchPercentage = 100 } = requestBody;
       
-        // Don't await the RPC call to prevent timeouts. Let it run in the background.
-        supabaseAdmin.rpc('mark_lesson_complete', {
+         const { error: rpcError } = await supabaseAdmin.rpc('mark_lesson_complete', {
             p_user_id: user.id,
             p_lesson_id: lessonId,
             p_course_id: courseId,
             p_watch_percentage: watchPercentage
-         }).then(({ error }) => {
-            if (error) {
-              console.error("Error saving progress in background:", error);
-            }
          });
 
-        return new Response(JSON.stringify({ success: true, message: "Progress saving started." }), {
+         if (rpcError) throw rpcError;
+
+        return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
