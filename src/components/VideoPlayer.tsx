@@ -28,6 +28,7 @@ interface VideoPlayerProps {
   playlist?: Video[];
   onVideoComplete: (videoId: string, watchPercentage: number, videoTitle: string) => Promise<void>;
   onBack: () => void;
+  onVideoSelect: (video: Video) => void;
   onNextVideo?: () => void;
   userProfile?: any;
   setShowCelebration: (show: boolean) => void;
@@ -46,6 +47,7 @@ export const VideoPlayer = ({
   playlist,
   onVideoComplete,
   onBack,
+  onVideoSelect,
   onNextVideo,
   userProfile,
   setShowCelebration,
@@ -312,15 +314,7 @@ export const VideoPlayer = ({
                       className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                         playlistVideo.id === video.id ? 'bg-primary/10 border-primary' : 'hover:bg-muted/50'
                       }`}
-                      onClick={() => {
-                        if (onNextVideo && playlistVideo.id !== video.id) {
-                            const targetIndex = localPlaylist.findIndex(v => v.id === playlistVideo.id);
-                            if (targetIndex > currentVideoIndex) {
-                                // This logic is simplified; a better implementation would involve passing a specific video selection handler
-                                onNextVideo();
-                            }
-                        }
-                      }}
+                      onClick={() => onVideoSelect(playlistVideo)}
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-16 h-12 bg-muted rounded overflow-hidden flex-shrink-0">
