@@ -228,14 +228,9 @@ const Index = () => {
     }
   };
 
-  const handleVideoSelect = (video: Video) => {
-    setSelectedVideo(video);
-    setCurrentView('player');
-  };
-
   const handleVideoComplete = async (videoId: string, watchPercentage: number, videoTitle: string) => {
     if (!user || !selectedCourse) return;
-
+  
     try {
       const { data, error } = await supabase.functions.invoke('youtube-integration', {
         body: {
@@ -249,28 +244,25 @@ const Index = () => {
         console.error("Function invoke error:", error);
         throw error;
       }
-
+  
+      await loadUserData();
+      await loadCourses();
+  
       const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
-      if(updatedProfile) {
-        setUserProfile(updatedProfile);
+  
+      if (updatedProfile) {
         const celebrationInfo = {
-          pointsEarned: 100, // This can be dynamic in future
+          pointsEarned: 100,
           totalPoints: updatedProfile.points,
           currentStreak: updatedProfile.current_streak,
           videoTitle,
           watchPercentage
         };
-
-        if (document.fullscreenElement) {
-          setCelebrationData(celebrationInfo);
-        } else {
-          setCelebrationData(celebrationInfo);
-          setShowCelebration(true);
-        }
+  
+        setCelebrationData(celebrationInfo);
+        setShowCelebration(true);
       }
-
-      await loadCourses();
-
+  
     } catch (error) {
       console.error('Error marking video as complete:', error);
       toast({
