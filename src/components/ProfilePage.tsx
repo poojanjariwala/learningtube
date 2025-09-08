@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { 
@@ -44,71 +43,75 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
 
   useEffect(() => {
     if (user) {
-      loadProfile();
-      loadStats();
+      loadProfileAndStats();
     }
   }, [user]);
 
-  const loadProfile = async () => {
+  const loadProfileAndStats = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
+      if (!user) return;
+
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user!.id)
+        .eq('user_id', user.id)
         .single();
+      if (profileError) throw profileError;
+      setProfile(profileData);
+      
+      if (!profileData) return;
 
-      if (error) throw error;
-      setProfile(data);
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
+      // Get all courses created by the user to determine what they've "started"
+      const { data: allUserCourses, error: allCoursesError } = await supabase
+        .from('courses')
+        .select(`id, lessons (id)`)
+        .eq('instructor_id', profileData.id);
+      if (allCoursesError) throw allCoursesError;
 
-  const loadStats = async () => {
-    try {
-      // Get user's course progress
-      const { data: progressData, error } = await supabase
+      // Get all progress data for the user
+      const { data: progressData, error: progressError } = await supabase
         .from('user_progress')
-        .select(`
-          *,
-          lesson:lessons(
-            course_id,
-            duration_minutes
-          )
-        `)
-        .eq('user_id', user!.id);
+        .select(`lesson_id, completed_at, lessons!inner(course_id, duration_minutes)`)
+        .eq('user_id', user.id);
+      if (progressError) throw progressError;
 
-      if (error) throw error;
+      let completedCoursesCount = 0;
+      allUserCourses.forEach(course => {
+        const totalLessons = course.lessons.length;
+        if (totalLessons === 0) return;
 
-      // Calculate stats
-      const courseIds = new Set(progressData?.map(p => p.lesson?.course_id).filter(Boolean) || []);
-      const completedLessons = progressData?.filter(p => p.completed_at) || [];
-      const totalWatchTime = progressData?.reduce((total, p) => {
-        return total + (p.lesson?.duration_minutes || 0);
-      }, 0) || 0;
+        const completedLessonsInCourse = progressData.filter(
+          p => p.lessons?.course_id === course.id && p.completed_at
+        ).length;
 
-      // Get achievements
+        if (completedLessonsInCourse === totalLessons) {
+          completedCoursesCount++;
+        }
+      });
+
+      const totalWatchTime = progressData.reduce((acc, p) => acc + (p.lessons?.duration_minutes || 0), 0);
+
       const { data: achievementsData } = await supabase
         .from('user_achievements')
-        .select(`
-          *,
-          achievement:achievements(*)
-        `)
-        .eq('user_id', user!.id);
+        .select(`*, achievement:achievements(*)`)
+        .eq('user_id', user.id);
 
       setStats({
-        totalCourses: courseIds.size,
-        completedCourses: 0, // We'll calculate this based on course completion
+        totalCourses: allUserCourses.length,
+        completedCourses: completedCoursesCount,
         totalWatchTime,
-        averageProgress: 0, // We'll calculate this based on overall progress
+        averageProgress: 0, // Note: Average progress calculation can be complex, deferred for now.
         achievements: achievementsData || []
       });
+
     } catch (error) {
-      console.error('Error loading stats:', error);
+      console.error('Error loading profile and stats:', error);
     } finally {
       setLoading(false);
     }
   };
+
 
   const formatWatchTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
