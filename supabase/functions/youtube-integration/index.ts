@@ -11,7 +11,6 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const youtubeApiKey = Deno.env.get('YOUTUBE_API_KEY')!;
 
-// Admin client for elevated privileges
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
@@ -63,7 +62,6 @@ serve(async (req) => {
               .eq('youtube_playlist_id', youtubeId)
               .eq('instructor_id', profile.id)
               .maybeSingle();
-
             if (existingCourseError) throw existingCourseError;
             if (existingCourse) throw new Error('This course has already been added.');
         } else { 
@@ -75,7 +73,6 @@ serve(async (req) => {
                 .eq('lessons.youtube_video_id', youtubeId)
                 .limit(1)
                 .maybeSingle();
-            
             if (existingCoursesError) throw existingCoursesError;
             if (existingCourses) throw new Error('This course has already been added.');
         }
@@ -96,7 +93,6 @@ serve(async (req) => {
         })
         .select()
         .single();
-
       if (courseError) throw courseError;
       
       const lessons = (courseType === 'playlist' ? courseData.videos : [courseData]).map((video: any, index: number) => ({
@@ -123,16 +119,19 @@ serve(async (req) => {
     if (action === 'markComplete') {
         const { lessonId, courseId, watchPercentage = 100 } = requestBody;
       
-        const { error: rpcError } = await supabaseAdmin.rpc('mark_lesson_complete', {
+        // Don't await the RPC call to prevent timeouts. Let it run in the background.
+        supabaseAdmin.rpc('mark_lesson_complete', {
             p_user_id: user.id,
             p_lesson_id: lessonId,
             p_course_id: courseId,
             p_watch_percentage: watchPercentage
+         }).then(({ error }) => {
+            if (error) {
+              console.error("Error saving progress in background:", error);
+            }
          });
 
-         if (rpcError) throw rpcError;
-
-        return new Response(JSON.stringify({ success: true }), {
+        return new Response(JSON.stringify({ success: true, message: "Progress saving started." }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
