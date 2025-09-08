@@ -134,7 +134,7 @@ const Index = () => {
       const formattedCourses = coursesData?.map(course => {
         const lessons = course.lessons || [];
         const completedLessons = course.user_progress.filter(p => p.watch_percentage && p.watch_percentage >= 90).length;
-        
+
         const videos = lessons
           .sort((a, b) => a.order_index - b.order_index)
           .map(lesson => {
@@ -152,9 +152,9 @@ const Index = () => {
           });
 
         const progress = lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0;
-        
+
         const courseType = course.youtube_playlist_id ? 'playlist' : 'video';
-        
+
         const singleVideo = (courseType === 'video' && lessons.length > 0) ? videos[0] : null;
 
         return {
@@ -193,7 +193,7 @@ const Index = () => {
       });
 
       if (error) throw error;
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
@@ -235,7 +235,7 @@ const Index = () => {
 
   const handleVideoComplete = async (videoId: string, watchPercentage: number, videoTitle: string) => {
     if (!user || !selectedCourse) return;
-    
+
     try {
       const { data, error } = await supabase.functions.invoke('youtube-integration', {
         body: {
@@ -249,18 +249,24 @@ const Index = () => {
         console.error("Function invoke error:", error);
         throw error;
       }
-      
+
       const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
       if(updatedProfile) {
         setUserProfile(updatedProfile);
-        setCelebrationData({
+        const celebrationInfo = {
           pointsEarned: 100, // This can be dynamic in future
           totalPoints: updatedProfile.points,
           currentStreak: updatedProfile.current_streak,
           videoTitle,
           watchPercentage
-        });
-        setShowCelebration(true);
+        };
+
+        if (document.fullscreenElement) {
+          setCelebrationData(celebrationInfo);
+        } else {
+          setCelebrationData(celebrationInfo);
+          setShowCelebration(true);
+        }
       }
 
       await loadCourses();
@@ -325,6 +331,8 @@ const Index = () => {
           }
         }}
         userProfile={userProfile}
+        setShowCelebration={setShowCelebration}
+        setCelebrationData={setCelebrationData}
       />
     );
   }
@@ -358,7 +366,7 @@ const Index = () => {
                 </div>
                 <h1 className="text-xl font-bold text-foreground hidden sm:block">LearnTube</h1>
               </div>
-              
+
               <div className="flex items-center gap-2 sm:gap-4">
                 {userProfile && (
                   isMobile ? (
@@ -413,9 +421,9 @@ const Index = () => {
                     </Card>
                   )
                 )}
-                
+
                 <ThemeToggle />
-                
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -446,7 +454,7 @@ const Index = () => {
                     <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent"> Structured Courses</span>
                   </h1>
                   <p className="text-xl text-muted-foreground leading-relaxed">
-                    Convert any YouTube video or playlist into a beautiful, ad-free learning experience 
+                    Convert any YouTube video or playlist into a beautiful, ad-free learning experience
                     with progress tracking and course-style organization.
                   </p>
                 </div>
@@ -466,8 +474,8 @@ const Index = () => {
                   </div>
                 </div>
 
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground font-semibold px-8 py-6 text-lg shadow-lg hover:shadow-xl transition-all duration-200"
                   onClick={() => document.getElementById('course-input')?.scrollIntoView({ behavior: 'smooth' })}
                 >
@@ -477,8 +485,8 @@ const Index = () => {
 
               <div className="relative">
                 <div className="relative rounded-2xl overflow-hidden shadow-2xl">
-                  <img 
-                    src={heroImage} 
+                  <img
+                    src={heroImage}
                     alt="Course Platform Interface"
                     className="w-full h-auto"
                   />
@@ -522,7 +530,7 @@ const Index = () => {
                   Leaderboard
                 </TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="courses" className="space-y-8">
                 {courses.length > 0 ? (
                   <div>
@@ -530,7 +538,7 @@ const Index = () => {
                       <h2 className="text-3xl font-bold text-foreground mb-4">Your Courses</h2>
                       <p className="text-muted-foreground">Continue your learning journey</p>
                     </div>
-                    
+
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {courses.map((course) => (
                         <CourseCard
@@ -555,7 +563,7 @@ const Index = () => {
                       <p className="text-muted-foreground mb-6">
                         Add your first YouTube video or playlist to get started with your learning journey.
                       </p>
-                      <Button 
+                      <Button
                         onClick={() => document.getElementById('course-input')?.scrollIntoView({ behavior: 'smooth' })}
                         className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
                       >
@@ -565,7 +573,7 @@ const Index = () => {
                   </div>
                 )}
               </TabsContent>
-              
+
               <TabsContent value="leaderboard">
                 <div className="max-w-2xl mx-auto">
                   <Leaderboard />
