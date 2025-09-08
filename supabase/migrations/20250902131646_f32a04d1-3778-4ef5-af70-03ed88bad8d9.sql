@@ -40,27 +40,31 @@ DECLARE
     v_profile_last_activity_date DATE;
     v_profile_current_streak INTEGER;
 BEGIN
-    -- Check if the lesson is already fully completed
-    SELECT completed_at IS NOT NULL
-    INTO v_is_already_completed
-    FROM user_progress
-    WHERE user_id = p_user_id AND lesson_id = p_lesson_id;
+    -- Check if the lesson is already fully completed (watch_percentage >= 90)
+    SELECT EXISTS (
+        SELECT 1
+        FROM user_progress
+        WHERE user_id = p_user_id 
+          AND lesson_id = p_lesson_id 
+          AND watch_percentage >= 90
+    )
+    INTO v_is_already_completed;
 
-    -- Only proceed if it has not been fully completed before
-    IF COALESCE(v_is_already_completed, FALSE) = FALSE THEN
-        -- Get points for the lesson, default to 100
-        SELECT points_reward INTO v_points_earned FROM lessons WHERE id = p_lesson_id;
-        v_points_earned := COALESCE(v_points_earned, 100);
+    -- Get points for the lesson, default to 100
+    SELECT points_reward INTO v_points_earned FROM lessons WHERE id = p_lesson_id;
+    v_points_earned := COALESCE(v_points_earned, 100);
 
-        -- Insert or update the user's progress for this lesson
-        INSERT INTO user_progress (user_id, lesson_id, course_id, watch_percentage, points_earned, completed_at)
-        VALUES (p_user_id, p_lesson_id, p_course_id, p_watch_percentage, v_points_earned, NOW())
-        ON CONFLICT (user_id, lesson_id) DO UPDATE
-        SET
-            watch_percentage = EXCLUDED.watch_percentage,
-            points_earned = EXCLUDED.points_earned,
-            completed_at = EXCLUDED.completed_at;
+    -- Insert or update the user's progress for this lesson
+    INSERT INTO user_progress (user_id, lesson_id, course_id, watch_percentage, points_earned, completed_at)
+    VALUES (p_user_id, p_lesson_id, p_course_id, p_watch_percentage, v_points_earned, CASE WHEN p_watch_percentage >= 90 THEN NOW() ELSE NULL END)
+    ON CONFLICT (user_id, lesson_id) DO UPDATE
+    SET
+        watch_percentage = GREATEST(user_progress.watch_percentage, EXCLUDED.watch_percentage),
+        points_earned = CASE WHEN user_progress.watch_percentage < 90 AND EXCLUDED.watch_percentage >= 90 THEN EXCLUDED.points_earned ELSE user_progress.points_earned END,
+        completed_at = CASE WHEN user_progress.watch_percentage < 90 AND EXCLUDED.watch_percentage >= 90 THEN NOW() ELSE user_progress.completed_at END;
 
+    -- Only award points and update streak if the lesson is newly completed
+    IF COALESCE(v_is_already_completed, FALSE) = FALSE AND p_watch_percentage >= 90 THEN
         -- Get the current profile state
         SELECT
             COALESCE(last_activity_date, '1970-01-01'),
@@ -73,12 +77,12 @@ BEGIN
         WHERE
             user_id = p_user_id;
 
-        -- Always update points
+        -- Update points unconditionally for a new completion
         UPDATE profiles
         SET points = COALESCE(points, 0) + v_points_earned
         WHERE user_id = p_user_id;
         
-        -- Only update streak logic if the last activity was NOT today
+        -- Check if the last activity was before today to update the streak
         IF v_profile_last_activity_date < CURRENT_DATE THEN
             IF v_profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day') THEN
                 -- Increment streak if the last activity was yesterday
