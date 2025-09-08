@@ -153,7 +153,7 @@ const Index = () => {
              thumbnail: course.thumbnail_url || '',
              duration: `${course.duration_minutes}m`,
              completed: course.user_progress.some(p => p.lesson_id === lessons[0].id && p.watch_percentage && p.watch_percentage >= 90),
-             youtube_video_id: lessons[0].youtube_video_id, // Get from lesson
+             youtube_video_id: lessons[0].youtube_video_id,
              course_id: course.id,
         } : null;
 
