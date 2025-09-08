@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { VideoNotes } from '@/components/VideoNotes';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { 
+import {
   ChevronLeft,
   ChevronRight,
   Check
@@ -30,6 +30,8 @@ interface VideoPlayerProps {
   onBack: () => void;
   onNextVideo?: () => void;
   userProfile?: any;
+  setShowCelebration: (show: boolean) => void;
+  setCelebrationData: (data: any) => void;
 }
 
 declare global {
@@ -39,13 +41,15 @@ declare global {
   }
 }
 
-export const VideoPlayer = ({ 
-  video, 
-  playlist, 
-  onVideoComplete, 
-  onBack, 
+export const VideoPlayer = ({
+  video,
+  playlist,
+  onVideoComplete,
+  onBack,
   onNextVideo,
-  userProfile 
+  userProfile,
+  setShowCelebration,
+  setCelebrationData
 }: VideoPlayerProps) => {
   const [player, setPlayer] = useState<any>(null);
   const [watchTime, setWatchTime] = useState(0);
@@ -57,6 +61,8 @@ export const VideoPlayer = ({
   const playerRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const [localPlaylist, setLocalPlaylist] = useState(playlist);
+  const [videoCompleted, setVideoCompleted] = useState(false);
+  const [completionData, setCompletionData] = useState<any>(null);
 
   useEffect(() => {
     setLocalPlaylist(playlist);
@@ -71,7 +77,15 @@ export const VideoPlayer = ({
   // Track fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
+
+      if (!isCurrentlyFullscreen && videoCompleted && completionData) {
+        setShowCelebration(true);
+        setCelebrationData(completionData);
+        setVideoCompleted(false);
+        setCompletionData(null);
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -85,7 +99,7 @@ export const VideoPlayer = ({
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
-  }, []);
+  }, [videoCompleted, completionData, setShowCelebration, setCelebrationData]);
 
   useEffect(() => {
     if (!video.youtube_video_id) return;
@@ -145,7 +159,7 @@ export const VideoPlayer = ({
         if (videoDuration > 0) {
           const percentage = Math.min((currentTime / videoDuration) * 100, 100);
           setWatchPercentage(percentage);
-          
+
           const milestones = [30, 50, 90];
           milestones.forEach(milestone => {
             if (percentage >= milestone && !progressMilestones.has(milestone)) {
@@ -180,12 +194,13 @@ export const VideoPlayer = ({
   const handleProgressUpdate = async (percentage: number, isCompletion: boolean) => {
     if (isCompletion && !video.completed) {
       if (localPlaylist) {
-        const updatedPlaylist = localPlaylist.map(v => 
+        const updatedPlaylist = localPlaylist.map(v =>
             v.id === video.id ? { ...v, completed: true, watch_percentage: 100 } : v
         );
         setLocalPlaylist(updatedPlaylist);
       }
       await onVideoComplete(video.id, percentage, video.title);
+      setVideoCompleted(true);
     }
   };
 
