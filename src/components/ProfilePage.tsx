@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { 
   Trophy, 
   Flame, 
@@ -25,7 +24,6 @@ interface UserStats {
   totalCourses: number;
   completedCourses: number;
   totalWatchTime: number;
-  averageProgress: number;
   achievements: any[];
 }
 
@@ -36,7 +34,6 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
     totalCourses: 0,
     completedCourses: 0,
     totalWatchTime: 0,
-    averageProgress: 0,
     achievements: []
   });
   const [loading, setLoading] = useState(true);
@@ -60,16 +57,17 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
       if (profileError) throw profileError;
       setProfile(profileData);
       
-      if (!profileData) return;
+      if (!profileData) {
+        setLoading(false);
+        return;
+      };
 
-      // Get all courses created by the user to determine what they've "started"
       const { data: allUserCourses, error: allCoursesError } = await supabase
         .from('courses')
         .select(`id, lessons (id)`)
         .eq('instructor_id', profileData.id);
       if (allCoursesError) throw allCoursesError;
 
-      // Get all progress data for the user
       const { data: progressData, error: progressError } = await supabase
         .from('user_progress')
         .select(`lesson_id, completed_at, lessons!inner(course_id, duration_minutes)`)
@@ -77,7 +75,7 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
       if (progressError) throw progressError;
 
       let completedCoursesCount = 0;
-      allUserCourses.forEach(course => {
+      allUserCourses?.forEach(course => {
         const totalLessons = course.lessons.length;
         if (totalLessons === 0) return;
 
@@ -85,7 +83,7 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
           p => p.lessons?.course_id === course.id && p.completed_at
         ).length;
 
-        if (completedLessonsInCourse === totalLessons) {
+        if (totalLessons > 0 && completedLessonsInCourse === totalLessons) {
           completedCoursesCount++;
         }
       });
@@ -101,7 +99,6 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
         totalCourses: allUserCourses.length,
         completedCourses: completedCoursesCount,
         totalWatchTime,
-        averageProgress: 0, // Note: Average progress calculation can be complex, deferred for now.
         achievements: achievementsData || []
       });
 
@@ -112,10 +109,9 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
     }
   };
 
-
   const formatWatchTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const mins = Math.round(minutes % 60);
     if (hours > 0) {
       return `${hours}h ${mins}m`;
     }
@@ -132,7 +128,7 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-6">
+      <div className="min-h-screen bg-background p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-center py-20">
             <p className="text-muted-foreground">Loading profile...</p>
@@ -143,9 +139,8 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={onBack} className="flex items-center gap-2">
             <ChevronLeft className="w-4 h-4" />
@@ -153,28 +148,27 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
           </Button>
         </div>
 
-        {/* Profile Header */}
         <Card>
-          <CardContent className="p-8">
-            <div className="flex items-center gap-6">
+          <CardContent className="p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
               <Avatar className="h-20 w-20">
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                   {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold text-foreground mb-2">
+              <div className="flex-1 text-center sm:text-left">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
                   {profile?.full_name || 'Learning Enthusiast'}
                 </h1>
-                <p className="text-muted-foreground mb-4">{user?.email}</p>
-                <div className="flex items-center gap-6">
+                <p className="text-muted-foreground mb-3 sm:mb-4">{user?.email}</p>
+                <div className="flex items-center justify-center sm:justify-start gap-4 sm:gap-6">
                   <div className="flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-yellow-500" />
-                    <span className="text-lg font-semibold">{profile?.points || 0} points</span>
+                    <span className="text-md sm:text-lg font-semibold">{profile?.points || 0} points</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Flame className="w-5 h-5 text-orange-500" />
-                    <span className="text-lg font-semibold">{profile?.current_streak || 0} day streak</span>
+                    <span className="text-md sm:text-lg font-semibold">{profile?.current_streak || 0} day streak</span>
                   </div>
                 </div>
               </div>
@@ -182,66 +176,64 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
           </CardContent>
         </Card>
 
-        {/* Stats Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/10 rounded-lg">
+            <CardContent className="p-4 sm:p-6 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <div className="p-2 bg-blue-500/10 rounded-lg inline-flex">
                   <BookOpen className="w-5 h-5 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.totalCourses}</p>
-                  <p className="text-sm text-muted-foreground">Courses Started</p>
+                  <p className="text-xl sm:text-2xl font-bold">{stats.totalCourses}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Courses Started</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-500/10 rounded-lg">
+            <CardContent className="p-4 sm:p-6 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <div className="p-2 bg-green-500/10 rounded-lg inline-flex">
                   <Target className="w-5 h-5 text-green-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.completedCourses}</p>
-                  <p className="text-sm text-muted-foreground">Completed</p>
+                  <p className="text-xl sm:text-2xl font-bold">{stats.completedCourses}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Completed</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-500/10 rounded-lg">
+            <CardContent className="p-4 sm:p-6 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <div className="p-2 bg-purple-500/10 rounded-lg inline-flex">
                   <Clock className="w-5 h-5 text-purple-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{formatWatchTime(stats.totalWatchTime)}</p>
-                  <p className="text-sm text-muted-foreground">Watch Time</p>
+                  <p className="text-xl sm:text-2xl font-bold">{formatWatchTime(stats.totalWatchTime)}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Watch Time</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-500/10 rounded-lg">
+            <CardContent className="p-4 sm:p-6 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <div className="p-2 bg-orange-500/10 rounded-lg inline-flex">
                   <TrendingUp className="w-5 h-5 text-orange-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{profile?.longest_streak || 0}</p>
-                  <p className="text-sm text-muted-foreground">Best Streak</p>
+                  <p className="text-xl sm:text-2xl font-bold">{profile?.longest_streak || 0}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Best Streak</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Streak Section */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -261,7 +253,6 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
                   <p className="text-lg font-semibold">{profile?.longest_streak || 0} days</p>
                 </div>
               </div>
-              
               {profile?.last_activity_date && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
@@ -272,7 +263,6 @@ export const ProfilePage = ({ onBack }: ProfilePageProps) => {
           </CardContent>
         </Card>
 
-        {/* Achievements */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
