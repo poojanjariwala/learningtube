@@ -55,7 +55,6 @@ serve(async (req) => {
       const { data: profile } = await supabaseAdmin.from('profiles').select('id').eq('user_id', user.id).single();
       if (!profile) throw new Error('Profile not found');
 
-      // 10. Check for duplicates
       if (youtubeId) {
         if (courseType === 'playlist') {
             const { data: existingCourse, error: existingCourseError } = await supabaseAdmin
@@ -67,13 +66,12 @@ serve(async (req) => {
 
             if (existingCourseError) throw existingCourseError;
             if (existingCourse) throw new Error('This course has already been added.');
-        } else { // courseType === 'video'
-            // Check if a course by this user exists that isn't a playlist and has a lesson with this video ID.
+        } else { 
             const { data: existingCourses, error: existingCoursesError } = await supabaseAdmin
                 .from('courses')
                 .select('id, lessons!inner(youtube_video_id)')
                 .eq('instructor_id', profile.id)
-                .is('youtube_playlist_id', null) // It's a single-video course
+                .is('youtube_playlist_id', null)
                 .eq('lessons.youtube_video_id', youtubeId)
                 .limit(1)
                 .maybeSingle();
@@ -123,55 +121,16 @@ serve(async (req) => {
     }
 
     if (action === 'markComplete') {
-        const { lessonId, watchPercentage = 100 } = requestBody;
+        const { lessonId, courseId, watchPercentage = 100 } = requestBody;
       
-        const { data: existingProgress } = await supabaseAdmin
-            .from('user_progress')
-            .select('id, completed_at')
-            .eq('user_id', user.id)
-            .eq('lesson_id', lessonId)
-            .maybeSingle();
-        
-        const isAlreadyCompleted = !!existingProgress?.completed_at;
+        const { error: rpcError } = await supabaseAdmin.rpc('mark_lesson_complete', {
+            p_user_id: user.id,
+            p_lesson_id: lessonId,
+            p_course_id: courseId,
+            p_watch_percentage: watchPercentage
+         });
 
-        if (!existingProgress) {
-            const { data: lesson } = await supabaseAdmin
-                .from('lessons')
-                .select('points_reward, course_id')
-                .eq('id', lessonId)
-                .single();
-
-            if (lesson) {
-                await supabaseAdmin.from('user_progress').insert({
-                    user_id: user.id,
-                    lesson_id: lessonId,
-                    course_id: lesson.course_id,
-                    watch_percentage: watchPercentage,
-                    points_earned: lesson.points_reward,
-                    completed_at: new Date().toISOString()
-                });
-            }
-        } else if (!isAlreadyCompleted) {
-             await supabaseAdmin.from('user_progress').update({
-                watch_percentage: watchPercentage,
-                completed_at: new Date().toISOString()
-            }).eq('id', existingProgress.id);
-        }
-
-        // 3. Call the new streak function if the video was just completed
-        if (!isAlreadyCompleted) {
-            const { data: lesson } = await supabaseAdmin
-                .from('lessons')
-                .select('points_reward')
-                .eq('id', lessonId)
-                .single();
-            
-             const { error: rpcError } = await supabaseAdmin.rpc('update_user_progress_stats_manual', {
-                p_user_id: user.id,
-                p_points_earned: lesson?.points_reward || 100
-             });
-             if (rpcError) throw rpcError;
-        }
+         if (rpcError) throw rpcError;
 
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
