@@ -147,15 +147,16 @@ const Index = () => {
         const progress = lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0;
         
         const courseType = course.youtube_playlist_id ? 'playlist' : 'video';
-        const singleVideo = {
-             id: course.id, // Use course id as lesson id for single videos
+        
+        const singleVideo = (courseType === 'video' && lessons.length > 0) ? {
+             id: lessons[0].id, // Use the correct lesson ID
              title: course.title,
              thumbnail: course.thumbnail_url || '',
              duration: `${course.duration_minutes}m`,
-             completed: course.user_progress.some(p => p.watch_percentage && p.watch_percentage >= 90),
-             youtube_video_id: course.youtube_video_id,
+             completed: course.user_progress.some(p => p.lesson_id === lessons[0].id && p.watch_percentage && p.watch_percentage >= 90),
+             youtube_video_id: course.youtube_video_id, // This now works
              course_id: course.id,
-        }
+        } : null;
 
         return {
           id: course.id,
@@ -165,7 +166,7 @@ const Index = () => {
           duration: `${course.duration_minutes}m`,
           videoCount: lessons.length,
           progress,
-          videos: courseType === 'playlist' ? videos : [singleVideo]
+          videos: courseType === 'playlist' ? videos : (singleVideo ? [singleVideo] : [])
         };
       }) || [];
 
@@ -571,4 +572,3 @@ const Index = () => {
 };
 
 export default Index;
-
