@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CourseUrlInput } from '@/components/CourseUrlInput';
 import { CourseCard } from '@/components/CourseCard';
@@ -59,30 +59,70 @@ const Index = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isMobile = useIsMobile();
 
-  const loadUserData = useCallback(async () => {
-    if (!user) return;
+  // Check authentication
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  // Load user data and courses
+  useEffect(() => {
+    if (user) {
+      loadUserData();
+      loadCourses();
+    }
+  }, [user]);
+
+  const loadUserData = async () => {
     try {
-      const { data: profile, error } = await supabase
+      if (!user) return;
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
         .single();
-      if (error) throw error;
+
       setUserProfile(profile);
     } catch (error) {
       console.error('Error loading user profile:', error);
     }
-  }, [user]);
+  };
 
-  const loadCourses = useCallback(async () => {
-    if(!user) return;
+  const loadCourses = async () => {
     try {
-      const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
       if (!profile) return;
 
       const { data: coursesData, error } = await supabase
         .from('courses')
-        .select(`*, lessons(*, user_progress(*))`)
+        .select(`
+          id,
+          title,
+          thumbnail_url,
+          duration_minutes,
+          instructor_id,
+          youtube_playlist_id,
+          youtube_video_id,
+          lessons (
+            id,
+            title,
+            video_url,
+            youtube_video_id,
+            duration_minutes,
+            order_index
+          ),
+          user_progress (
+            lesson_id,
+            watch_percentage
+          )
+        `)
         .eq('instructor_id', profile.id)
         .order('created_at', { ascending: false });
 
@@ -90,9 +130,7 @@ const Index = () => {
 
       const formattedCourses = coursesData?.map(course => {
         const lessons = course.lessons || [];
-        const completedLessons = lessons.filter(lesson => 
-          lesson.user_progress && lesson.user_progress.some(up => up.completed_at)
-        ).length;
+        const completedLessons = course.user_progress.filter(p => p.watch_percentage && p.watch_percentage >= 90).length;
         
         const videos = lessons
           .sort((a, b) => a.order_index - b.order_index)
@@ -101,22 +139,33 @@ const Index = () => {
             title: lesson.title,
             thumbnail: `https://img.youtube.com/vi/${lesson.youtube_video_id}/maxresdefault.jpg`,
             duration: `${lesson.duration_minutes}m`,
-            completed: lesson.user_progress && lesson.user_progress.some(up => up.completed_at),
+            completed: course.user_progress.some(p => p.lesson_id === lesson.id && p.watch_percentage && p.watch_percentage >= 90),
             youtube_video_id: lesson.youtube_video_id,
             course_id: course.id,
           }));
 
         const progress = lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0;
+        
+        const courseType = course.youtube_playlist_id ? 'playlist' : 'video';
+        const singleVideo = {
+             id: course.id, // Use course id as lesson id for single videos
+             title: course.title,
+             thumbnail: course.thumbnail_url || '',
+             duration: `${course.duration_minutes}m`,
+             completed: course.user_progress.some(p => p.watch_percentage && p.watch_percentage >= 90),
+             youtube_video_id: course.youtube_video_id,
+             course_id: course.id,
+        }
 
         return {
           id: course.id,
           title: course.title,
           thumbnail: course.thumbnail_url || (videos[0]?.thumbnail || ''),
-          type: course.youtube_playlist_id ? 'playlist' : 'video' as 'video' | 'playlist',
+          type: courseType,
           duration: `${course.duration_minutes}m`,
           videoCount: lessons.length,
           progress,
-          videos
+          videos: courseType === 'playlist' ? videos : [singleVideo]
         };
       }) || [];
 
@@ -129,38 +178,37 @@ const Index = () => {
         variant: "destructive",
       });
     }
-  }, [user, toast]);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-    if (user) {
-      loadUserData();
-      loadCourses();
-    }
-  }, [user, loading, navigate, loadUserData, loadCourses]);
+  };
 
   const handleUrlSubmit = async (url: string, type: 'video' | 'playlist') => {
-    if (!user) return navigate('/auth');
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.functions.invoke('youtube-integration', {
+      const { data, error } = await supabase.functions.invoke('youtube-integration', {
         body: { action: 'fetchCourse', url, type }
       });
 
-      if (error) throw new Error(error.message);
+      if (error) throw error;
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       toast({
         title: "Course added!",
         description: "Your YouTube course has been successfully imported.",
       });
+
       await loadCourses();
     } catch (error: any) {
       console.error('Error adding course:', error);
       toast({
         title: "Error adding course",
-        description: error.message || "Please try again.",
+        description: error.message || "Please check the URL and try again.",
         variant: "destructive",
       });
     } finally {
@@ -170,7 +218,7 @@ const Index = () => {
 
   const handleCourseClick = (course: Course) => {
     setSelectedCourse(course);
-    if (course.type === 'playlist' || (course.videos && course.videos.length > 1)) {
+    if (course.type === 'playlist') {
       setCurrentView('playlist');
     } else {
       setSelectedVideo(course.videos![0]);
@@ -185,64 +233,107 @@ const Index = () => {
 
   const handleVideoComplete = async (videoId: string, watchPercentage: number) => {
     if (!user || !selectedCourse) return;
+    
     try {
-      await supabase.functions.invoke('youtube-integration', {
-        body: { action: 'markComplete', lessonId: videoId, watchPercentage: Math.round(watchPercentage) }
+      const { error } = await supabase.functions.invoke('youtube-integration', {
+        body: {
+          action: 'markComplete',
+          lessonId: videoId,
+          courseId: selectedCourse.id,
+          watchPercentage: Math.round(watchPercentage)
+        }
       });
-      await loadCourses();
-      await loadUserData();
+      if (error) throw error;
+
+      await Promise.all([loadCourses(), loadUserData()]);
+
       toast({
         title: "Progress saved!",
-        description: `Video completed. Points earned!`,
+        description: `Points and streak updated!`,
       });
     } catch (error) {
       console.error('Error marking video as complete:', error);
       toast({
         title: "Error",
-        description: "Failed to save progress.",
+        description: "Failed to save progress. Please try again.",
         variant: "destructive",
       });
     }
   };
 
+
   const handleBack = () => {
+    loadCourses(); // Refresh courses on back
     setCurrentView('dashboard');
     setSelectedCourse(null);
     setSelectedVideo(null);
-    loadCourses(); // Refresh courses on back
-    loadUserData(); // Refresh user data on back
   };
 
-  const handleProfileView = () => setCurrentView('profile');
+  const handleProfileView = () => {
+    setCurrentView('profile');
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
 
-  // ... (loading and user checks remain the same)
-  
-  if (currentView === 'player' && selectedVideo) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <VideoPlayer
-          video={selectedVideo}
-          playlist={selectedCourse?.videos}
-          onVideoComplete={handleVideoComplete}
-          onBack={handleBack}
-          onNextVideo={(nextVideoId) => {
-            const nextVideo = selectedCourse?.videos?.find(v => v.id === nextVideoId);
-            if (nextVideo) setSelectedVideo(nextVideo);
-          }}
-          userProfile={userProfile}
-        />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <GraduationCap className="h-12 w-12 text-primary mx-auto mb-4 animate-pulse" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
 
-  // ... (other view returns remain the same)
-  
+  if (!user) {
+    return null;
+  }
+
+  if (currentView === 'player' && selectedVideo) {
+    return (
+      <VideoPlayer
+        key={selectedVideo.id}
+        video={selectedVideo}
+        playlist={selectedCourse?.videos}
+        onVideoComplete={handleVideoComplete}
+        onBack={handleBack}
+        onNextVideo={() => {
+          if (selectedCourse?.videos) {
+            const currentIndex = selectedCourse.videos.findIndex(v => v.id === selectedVideo.id);
+            const nextVideo = selectedCourse.videos[currentIndex + 1];
+            if (nextVideo) {
+              setSelectedVideo(nextVideo);
+            }
+          }
+        }}
+        userProfile={userProfile}
+      />
+    );
+  }
+
+  if (currentView === 'playlist' && selectedCourse) {
+    return (
+      <PlaylistView
+        title={selectedCourse.title}
+        thumbnail={selectedCourse.thumbnail}
+        videos={selectedCourse.videos!}
+        onVideoSelect={handleVideoSelect}
+        onBack={handleBack}
+      />
+    );
+  }
+
+  if (currentView === 'profile') {
+    return <ProfilePage onBack={handleBack} />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Header with user info */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
@@ -259,9 +350,9 @@ const Index = () => {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Avatar className="h-9 w-9 cursor-pointer">
-                        <AvatarImage src={userProfile.avatar_url} alt={userProfile.full_name || 'User'} />
+                        <AvatarImage src={userProfile.avatar_url || user.user_metadata.avatar_url} alt={userProfile.full_name || user.user_metadata.full_name} />
                         <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                          {userProfile.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
+                          {(userProfile.full_name || user.user_metadata.full_name || user.email)?.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                     </DropdownMenuTrigger>
@@ -287,9 +378,9 @@ const Index = () => {
                     <CardContent className="p-2 sm:p-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                           <AvatarImage src={userProfile.avatar_url} alt={userProfile.full_name || 'User'} />
+                           <AvatarImage src={userProfile.avatar_url || user.user_metadata.avatar_url} alt={userProfile.full_name || user.user_metadata.full_name} />
                           <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                            {userProfile.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
+                            {(userProfile.full_name || user.user_metadata.full_name || user.email)?.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="hidden sm:flex items-center gap-4 text-sm">
@@ -394,10 +485,90 @@ const Index = () => {
           </div>
         </div>
       </section>
-        
-        {/* ... (Rest of the component remains the same) ... */}
+
+      {/* Course Input Section */}
+      <section id="course-input" className="py-20 px-6">
+        <div className="max-w-2xl mx-auto">
+          <CourseUrlInput onUrlSubmit={handleUrlSubmit} isLoading={isSubmitting} />
+        </div>
+      </section>
+
+      {/* Main Content */}
+      <section className="py-12 px-6">
+        <div className="max-w-7xl mx-auto">
+          <Tabs defaultValue="courses" className="w-full">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+              <TabsTrigger value="courses" className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                My Courses
+              </TabsTrigger>
+              <TabsTrigger value="leaderboard" className="flex items-center gap-2">
+                <Trophy className="w-4 h-4" />
+                Leaderboard
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="courses" className="space-y-8">
+              {courses.length > 0 ? (
+                <div>
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold text-foreground mb-4">Your Courses</h2>
+                    <p className="text-muted-foreground">Continue your learning journey</p>
+                  </div>
+                  
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {courses.map((course) => (
+                      <CourseCard
+                        key={course.id}
+                        id={course.id}
+                        title={course.title}
+                        thumbnail={course.thumbnail}
+                        type={course.type}
+                        duration={course.duration}
+                        videoCount={course.videoCount}
+                        progress={course.progress}
+                        onClick={() => handleCourseClick(course)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-2xl mx-auto text-center">
+                  <div className="bg-muted/30 rounded-2xl p-12">
+                    <BookOpen className="h-16 w-16 text-muted-foreground/50 mx-auto mb-6" />
+                    <h3 className="text-xl font-semibold text-foreground mb-4">No courses yet</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Add your first YouTube video or playlist to get started with your learning journey.
+                    </p>
+                    <Button 
+                      onClick={() => document.getElementById('course-input')?.scrollIntoView({ behavior: 'smooth' })}
+                      className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
+                    >
+                      Add Your First Course
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="leaderboard">
+              <div className="max-w-2xl mx-auto">
+                <Leaderboard />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border bg-muted/30 py-8 px-6">
+        <div className="max-w-7xl mx-auto text-center text-muted-foreground">
+          <p>Transform your YouTube learning experience into structured, ad-free courses.</p>
+        </div>
+      </footer>
     </div>
   );
 };
 
 export default Index;
+
