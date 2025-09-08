@@ -11,7 +11,8 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const youtubeApiKey = Deno.env.get('YOUTUBE_API_KEY')!;
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Admin client for elevated privileges
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -23,7 +24,7 @@ serve(async (req) => {
     if (!authHeader) throw new Error('No authorization header');
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) throw new Error('Invalid authentication');
 
@@ -37,27 +38,27 @@ serve(async (req) => {
       
       let courseData;
       let youtubeId: string | null = null;
-      let idColumn: string | null = null;
+      let courseType: 'video' | 'playlist' | null = null;
       
       if (playlistMatch) {
         youtubeId = playlistMatch[1];
-        idColumn = 'youtube_playlist_id';
+        courseType = 'playlist';
         courseData = await fetchPlaylistData(youtubeId);
       } else if (videoMatch) {
         youtubeId = videoMatch[1];
-        idColumn = 'youtube_video_id'; // This will be on the lessons table, but we can check courses table for single video courses
+        courseType = 'video';
         courseData = await fetchVideoData(youtubeId);
       } else {
         throw new Error('Invalid YouTube URL');
       }
 
-      const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
+      const { data: profile } = await supabaseAdmin.from('profiles').select('id').eq('user_id', user.id).single();
       if (!profile) throw new Error('Profile not found');
 
-      // Check for duplicates
+      // 10. Check for duplicates
       if (youtubeId) {
-        const queryCol = playlistMatch ? 'youtube_playlist_id' : 'youtube_video_id';
-        const { data: existingCourse, error: existingCourseError } = await supabase
+        const queryCol = courseType === 'playlist' ? 'youtube_playlist_id' : 'youtube_video_id';
+        const { data: existingCourse, error: existingCourseError } = await supabaseAdmin
           .from('courses')
           .select('id')
           .eq(queryCol, youtubeId)
@@ -68,7 +69,7 @@ serve(async (req) => {
         if (existingCourse) throw new Error('This course has already been added.');
       }
       
-      const { data: course, error: courseError } = await supabase
+      const { data: course, error: courseError } = await supabaseAdmin
         .from('courses')
         .insert({
           title: courseData.title,
@@ -76,18 +77,17 @@ serve(async (req) => {
           thumbnail_url: courseData.thumbnail,
           duration_minutes: courseData.duration,
           instructor_id: profile.id,
-          youtube_playlist_id: courseData.playlistId,
+          youtube_playlist_id: courseType === 'playlist' ? youtubeId : null,
           youtube_channel_id: courseData.channelId,
           youtube_channel_name: courseData.channelName,
           is_published: true,
-          ...(playlistMatch ? {} : { youtube_video_id: youtubeId })
         })
         .select()
         .single();
 
       if (courseError) throw courseError;
       
-      const lessons = (courseData.videos || [courseData]).map((video: any, index: number) => ({
+      const lessons = (courseType === 'playlist' ? courseData.videos : [courseData]).map((video: any, index: number) => ({
         course_id: course.id,
         title: video.title,
         description: video.description,
@@ -98,8 +98,10 @@ serve(async (req) => {
         points_reward: 100
       }));
       
-      const { error: lessonsError } = await supabase.from('lessons').insert(lessons);
-      if (lessonsError) throw lessonsError;
+      if (lessons.length > 0) {
+        const { error: lessonsError } = await supabaseAdmin.from('lessons').insert(lessons);
+        if (lessonsError) throw lessonsError;
+      }
 
       return new Response(JSON.stringify({ course }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -109,24 +111,24 @@ serve(async (req) => {
     if (action === 'markComplete') {
         const { lessonId, watchPercentage = 100 } = requestBody;
       
-        const { data: existingProgress } = await supabase
+        const { data: existingProgress } = await supabaseAdmin
             .from('user_progress')
             .select('id, completed_at')
             .eq('user_id', user.id)
             .eq('lesson_id', lessonId)
-            .single();
+            .maybeSingle();
         
         const isAlreadyCompleted = !!existingProgress?.completed_at;
 
         if (!existingProgress) {
-            const { data: lesson } = await supabase
+            const { data: lesson } = await supabaseAdmin
                 .from('lessons')
                 .select('points_reward, course_id')
                 .eq('id', lessonId)
                 .single();
 
             if (lesson) {
-                await supabase.from('user_progress').insert({
+                await supabaseAdmin.from('user_progress').insert({
                     user_id: user.id,
                     lesson_id: lessonId,
                     course_id: lesson.course_id,
@@ -135,28 +137,27 @@ serve(async (req) => {
                     completed_at: new Date().toISOString()
                 });
             }
-        } else {
-             await supabase.from('user_progress').update({
+        } else if (!isAlreadyCompleted) {
+             await supabaseAdmin.from('user_progress').update({
                 watch_percentage: watchPercentage,
                 completed_at: new Date().toISOString()
             }).eq('id', existingProgress.id);
         }
 
-        // Only trigger streak/points update if it wasn't already completed
+        // 3. Call the new streak function if the video was just completed
         if (!isAlreadyCompleted) {
-            const { data: lesson } = await supabase
+            const { data: lesson } = await supabaseAdmin
                 .from('lessons')
                 .select('points_reward')
                 .eq('id', lessonId)
                 .single();
             
-            // This will trigger the DB function
-             await supabase.rpc('update_user_progress_stats_manual', {
+             const { error: rpcError } = await supabaseAdmin.rpc('update_user_progress_stats_manual', {
                 p_user_id: user.id,
                 p_points_earned: lesson?.points_reward || 100
              });
+             if (rpcError) throw rpcError;
         }
-
 
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -187,14 +188,16 @@ async function fetchPlaylistData(playlistId: string) {
 
   do {
     const videosResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=50&key=${youtubeApiKey}&pageToken=${nextPageToken}`
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=50&key=${youtubeApiKey}&pageToken=${nextPageToken}`
     );
     const videosData = await videosResponse.json();
-    allVideos = allVideos.concat(videosData.items);
+    if (videosData.items) {
+      allVideos = allVideos.concat(videosData.items);
+    }
     nextPageToken = videosData.nextPageToken;
   } while (nextPageToken);
 
-  const videoIds = allVideos?.map((item: any) => item.contentDetails.videoId).join(',') || '';
+  const videoIds = allVideos?.map((item: any) => item.snippet.resourceId.videoId).join(',') || '';
   
   const videoDetailsResponse = await fetch(
     `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds}&key=${youtubeApiKey}`
