@@ -45,7 +45,7 @@ serve(async (req) => {
         courseData = await fetchPlaylistData(youtubeId);
       } else if (videoMatch) {
         youtubeId = videoMatch[1];
-        idColumn = 'youtube_video_id';
+        idColumn = 'youtube_video_id'; // This will be on the lessons table, but we can check courses table for single video courses
         courseData = await fetchVideoData(youtubeId);
       } else {
         throw new Error('Invalid YouTube URL');
@@ -55,11 +55,12 @@ serve(async (req) => {
       if (!profile) throw new Error('Profile not found');
 
       // Check for duplicates
-      if (youtubeId && idColumn) {
+      if (youtubeId) {
+        const queryCol = playlistMatch ? 'youtube_playlist_id' : 'youtube_video_id';
         const { data: existingCourse, error: existingCourseError } = await supabase
           .from('courses')
           .select('id')
-          .eq(idColumn, youtubeId)
+          .eq(queryCol, youtubeId)
           .eq('instructor_id', profile.id)
           .maybeSingle();
 
@@ -110,10 +111,12 @@ serve(async (req) => {
       
         const { data: existingProgress } = await supabase
             .from('user_progress')
-            .select('id')
+            .select('id, completed_at')
             .eq('user_id', user.id)
             .eq('lesson_id', lessonId)
             .single();
+        
+        const isAlreadyCompleted = !!existingProgress?.completed_at;
 
         if (!existingProgress) {
             const { data: lesson } = await supabase
@@ -128,7 +131,8 @@ serve(async (req) => {
                     lesson_id: lessonId,
                     course_id: lesson.course_id,
                     watch_percentage: watchPercentage,
-                    points_earned: lesson.points_reward
+                    points_earned: lesson.points_reward,
+                    completed_at: new Date().toISOString()
                 });
             }
         } else {
@@ -137,6 +141,22 @@ serve(async (req) => {
                 completed_at: new Date().toISOString()
             }).eq('id', existingProgress.id);
         }
+
+        // Only trigger streak/points update if it wasn't already completed
+        if (!isAlreadyCompleted) {
+            const { data: lesson } = await supabase
+                .from('lessons')
+                .select('points_reward')
+                .eq('id', lessonId)
+                .single();
+            
+            // This will trigger the DB function
+             await supabase.rpc('update_user_progress_stats_manual', {
+                p_user_id: user.id,
+                p_points_earned: lesson?.points_reward || 100
+             });
+        }
+
 
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -162,11 +182,19 @@ async function fetchPlaylistData(playlistId: string) {
   if (!playlistData.items?.[0]) throw new Error('Playlist not found');
   const playlist = playlistData.items[0];
 
-  const videosResponse = await fetch(
-    `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=50&key=${youtubeApiKey}`
-  );
-  const videosData = await videosResponse.json();
-  const videoIds = videosData.items?.map((item: any) => item.contentDetails.videoId).join(',') || '';
+  let allVideos: any[] = [];
+  let nextPageToken = '';
+
+  do {
+    const videosResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=50&key=${youtubeApiKey}&pageToken=${nextPageToken}`
+    );
+    const videosData = await videosResponse.json();
+    allVideos = allVideos.concat(videosData.items);
+    nextPageToken = videosData.nextPageToken;
+  } while (nextPageToken);
+
+  const videoIds = allVideos?.map((item: any) => item.contentDetails.videoId).join(',') || '';
   
   const videoDetailsResponse = await fetch(
     `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds}&key=${youtubeApiKey}`
@@ -222,5 +250,6 @@ function parseDuration(duration: string): number {
   const minutes = parseInt(match[2]?.replace('M', '') || '0');
   const seconds = parseInt(match[3]?.replace('S', '') || '0');
   
-  return hours * 60 + minutes + Math.round(seconds / 60);
+  return Math.round(hours * 60 + minutes + seconds / 60);
 }
+
