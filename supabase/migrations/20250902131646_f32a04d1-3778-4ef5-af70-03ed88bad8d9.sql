@@ -25,89 +25,76 @@ ALTER TABLE courses ADD COLUMN youtube_channel_name TEXT;
 -- Add YouTube video ID to lessons table
 ALTER TABLE lessons ADD COLUMN youtube_video_id TEXT;
 
--- This new function correctly handles all streak update scenarios, including same-day activity.
-CREATE OR REPLACE FUNCTION update_user_progress_stats_manual(p_user_id UUID, p_points_earned INTEGER)
+-- This function replaces the old trigger and function with a single, efficient RPC.
+-- It handles progress updates, points, and streak calculations in one database call.
+CREATE OR REPLACE FUNCTION mark_lesson_complete(
+    p_user_id UUID,
+    p_lesson_id UUID,
+    p_course_id UUID,
+    p_watch_percentage INTEGER
+)
 RETURNS VOID AS $$
 DECLARE
-  profile_last_activity_date DATE;
-  profile_current_streak INTEGER;
+    v_points_earned INTEGER;
+    v_is_already_completed BOOLEAN;
+    v_profile_last_activity_date DATE;
+    v_profile_current_streak INTEGER;
 BEGIN
-  -- Get the current profile state before any updates
-  SELECT
-    COALESCE(last_activity_date, '1970-01-01'),
-    COALESCE(current_streak, 0)
-  INTO
-    profile_last_activity_date,
-    profile_current_streak
-  FROM
-    profiles
-  WHERE
-    user_id = p_user_id;
+    -- Check if the lesson is already fully completed
+    SELECT completed_at IS NOT NULL
+    INTO v_is_already_completed
+    FROM user_progress
+    WHERE user_id = p_user_id AND lesson_id = p_lesson_id;
 
-  -- First, update points and last activity date
-  UPDATE profiles
-  SET
-    points = COALESCE(points, 0) + p_points_earned,
-    last_activity_date = CURRENT_DATE
-  WHERE
-    user_id = p_user_id;
+    -- Only proceed if it has not been fully completed before
+    IF COALESCE(v_is_already_completed, FALSE) = FALSE THEN
+        -- Get points for the lesson, default to 100
+        SELECT points_reward INTO v_points_earned FROM lessons WHERE id = p_lesson_id;
+        v_points_earned := COALESCE(v_points_earned, 100);
 
-  -- Then, update streak based on the state before the update
-  IF profile_last_activity_date < (CURRENT_DATE - INTERVAL '1 day') THEN
-    -- If the last activity was before yesterday, reset streak to 1
-    UPDATE profiles
-    SET
-      current_streak = 1,
-      longest_streak = GREATEST(COALESCE(longest_streak, 0), 1)
-    WHERE
-      user_id = p_user_id;
-  ELSIF profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day') THEN
-    -- If the last activity was yesterday, increment streak
-    UPDATE profiles
-    SET
-      current_streak = profile_current_streak + 1,
-      longest_streak = GREATEST(COALESCE(longest_streak, 0), profile_current_streak + 1)
-    WHERE
-      user_id = p_user_id;
-  END IF;
-  -- If last activity was today, do nothing to the streak.
+        -- Insert or update the user's progress for this lesson
+        INSERT INTO user_progress (user_id, lesson_id, course_id, watch_percentage, points_earned, completed_at)
+        VALUES (p_user_id, p_lesson_id, p_course_id, p_watch_percentage, v_points_earned, NOW())
+        ON CONFLICT (user_id, lesson_id) DO UPDATE
+        SET
+            watch_percentage = EXCLUDED.watch_percentage,
+            points_earned = EXCLUDED.points_earned,
+            completed_at = EXCLUDED.completed_at;
 
-  RETURN;
+        -- Get the current profile state before updating streak
+        SELECT
+            COALESCE(last_activity_date, '1970-01-01'),
+            COALESCE(current_streak, 0)
+        INTO
+            v_profile_last_activity_date,
+            v_profile_current_streak
+        FROM
+            profiles
+        WHERE
+            user_id = p_user_id;
+
+        -- Update points and last activity date first
+        UPDATE profiles
+        SET
+            points = COALESCE(points, 0) + v_points_earned,
+            last_activity_date = CURRENT_DATE
+        WHERE
+            user_id = p_user_id;
+            
+        -- Then, update streak based on the state from before the update
+        IF v_profile_last_activity_date < (CURRENT_DATE - INTERVAL '1 day') THEN
+            -- Reset streak to 1 if the last activity was before yesterday
+            UPDATE profiles SET current_streak = 1, longest_streak = GREATEST(COALESCE(longest_streak, 0), 1) WHERE user_id = p_user_id;
+        ELSIF v_profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day') THEN
+            -- Increment streak if the last activity was yesterday
+            UPDATE profiles SET current_streak = v_profile_current_streak + 1, longest_streak = GREATEST(COALESCE(longest_streak, 0), v_profile_current_streak + 1) WHERE user_id = p_user_id;
+        END IF;
+    END IF;
+
+    RETURN;
 END;
 $$ LANGUAGE plpgsql;
 
-
--- We are keeping the old function and trigger for historical schema consistency, 
--- but the logic is now handled by the manual call from the edge function.
-CREATE OR REPLACE FUNCTION update_user_progress_stats()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- This logic is flawed and is no longer the primary method for updating streaks.
-  -- See update_user_progress_stats_manual for the correct implementation.
-  UPDATE profiles 
-  SET points = points + COALESCE(NEW.points_earned, 0),
-      last_activity_date = CURRENT_DATE
-  WHERE user_id = NEW.user_id;
-  
-  UPDATE profiles 
-  SET current_streak = CASE 
-    WHEN last_activity_date = CURRENT_DATE - INTERVAL '1 day' THEN current_streak + 1
-    WHEN last_activity_date < CURRENT_DATE - INTERVAL '1 day' THEN 1
-    ELSE current_streak
-  END,
-  longest_streak = GREATEST(longest_streak, 
-    CASE 
-      WHEN last_activity_date = CURRENT_DATE - INTERVAL '1 day' THEN current_streak + 1
-      WHEN last_activity_date < CURRENT_DATE - INTERVAL '1 day' THEN 1
-      ELSE current_streak
-    END)
-  WHERE user_id = NEW.user_id;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER update_user_stats_trigger
-  AFTER INSERT ON user_progress
-  FOR EACH ROW
-  EXECUTE FUNCTION update_user_progress_stats();
+-- The old trigger is no longer needed as the logic is now handled by the RPC call.
+DROP TRIGGER IF EXISTS update_user_stats_trigger ON public.user_progress;
+DROP FUNCTION IF EXISTS public.update_user_progress_stats();
