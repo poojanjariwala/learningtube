@@ -61,7 +61,7 @@ BEGIN
             points_earned = EXCLUDED.points_earned,
             completed_at = EXCLUDED.completed_at;
 
-        -- Get the current profile state before updating streak
+        -- Get the current profile state
         SELECT
             COALESCE(last_activity_date, '1970-01-01'),
             COALESCE(current_streak, 0)
@@ -73,21 +73,30 @@ BEGIN
         WHERE
             user_id = p_user_id;
 
-        -- Update points and last activity date first
+        -- Always update points
         UPDATE profiles
-        SET
-            points = COALESCE(points, 0) + v_points_earned,
-            last_activity_date = CURRENT_DATE
-        WHERE
-            user_id = p_user_id;
-            
-        -- Then, update streak based on the state from before the update
-        IF v_profile_last_activity_date < (CURRENT_DATE - INTERVAL '1 day') THEN
-            -- Reset streak to 1 if the last activity was before yesterday
-            UPDATE profiles SET current_streak = 1, longest_streak = GREATEST(COALESCE(longest_streak, 0), 1) WHERE user_id = p_user_id;
-        ELSIF v_profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day') THEN
-            -- Increment streak if the last activity was yesterday
-            UPDATE profiles SET current_streak = v_profile_current_streak + 1, longest_streak = GREATEST(COALESCE(longest_streak, 0), v_profile_current_streak + 1) WHERE user_id = p_user_id;
+        SET points = COALESCE(points, 0) + v_points_earned
+        WHERE user_id = p_user_id;
+        
+        -- Only update streak logic if the last activity was NOT today
+        IF v_profile_last_activity_date < CURRENT_DATE THEN
+            IF v_profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day') THEN
+                -- Increment streak if the last activity was yesterday
+                UPDATE profiles 
+                SET 
+                    current_streak = v_profile_current_streak + 1, 
+                    longest_streak = GREATEST(COALESCE(longest_streak, 0), v_profile_current_streak + 1),
+                    last_activity_date = CURRENT_DATE
+                WHERE user_id = p_user_id;
+            ELSE
+                -- Reset streak to 1 if the last activity was before yesterday
+                UPDATE profiles 
+                SET 
+                    current_streak = 1, 
+                    longest_streak = GREATEST(COALESCE(longest_streak, 0), 1),
+                    last_activity_date = CURRENT_DATE
+                WHERE user_id = p_user_id;
+            END IF;
         END IF;
     END IF;
 
