@@ -78,6 +78,7 @@ serve(async (req) => {
           duration_minutes: courseData.duration,
           instructor_id: profile.id,
           youtube_playlist_id: courseType === 'playlist' ? youtubeId : null,
+          youtube_video_id: courseType === 'video' ? youtubeId : null, // Add this line
           youtube_channel_id: courseData.channelId,
           youtube_channel_name: courseData.channelName,
           is_published: true,
@@ -255,4 +256,3 @@ function parseDuration(duration: string): number {
   
   return Math.round(hours * 60 + minutes + seconds / 60);
 }
-
