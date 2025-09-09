@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -31,26 +31,25 @@ interface PlaylistViewProps {
 export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }: PlaylistViewProps) => {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
 
-  const completedCount = videos.filter(v => v.completed).length;
-  const progress = videos.length > 0 ? (completedCount / videos.length) * 100 : 0;
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
-  // Correctly calculate total duration from strings like "10m"
-  const totalDurationInSeconds = videos.reduce((acc, video) => {
-    const minutes = parseInt(video.duration, 10) || 0;
-    return acc + minutes * 60;
+  const completedCount = videos.filter(v => v.completed).length;
+  const progress = (completedCount / videos.length) * 100;
+  const totalDuration = videos.reduce((acc, video) => {
+    const [minutes, seconds] = video.duration.split(':').map(Number);
+    return acc + minutes * 60 + seconds;
   }, 0);
 
   const formatTotalDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   };
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button
@@ -65,8 +64,8 @@ export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }
 
       {/* Course Overview */}
       <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-          <div className="flex-shrink-0 mx-auto md:mx-0">
+        <div className="flex gap-6">
+          <div className="flex-shrink-0">
             <img
               src={thumbnail}
               alt={title}
@@ -74,17 +73,17 @@ export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }
             />
           </div>
 
-          <div className="flex-1 space-y-4 text-center md:text-left">
+          <div className="flex-1 space-y-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">{title}</h1>
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-muted-foreground">
+              <h1 className="text-3xl font-bold text-foreground mb-2">{title}</h1>
+              <div className="flex items-center gap-4 text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Video className="w-4 h-4" />
                   <span>{videos.length} videos</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock className="w-4 h-4" />
-                  <span>{formatTotalDuration(totalDurationInSeconds)}</span>
+                  <span>{formatTotalDuration(totalDuration)}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <BookOpen className="w-4 h-4" />
