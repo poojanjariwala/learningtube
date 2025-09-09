@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import {
-  Play,
-  Check,
-  Clock,
-  ChevronLeft,
+import { 
+  Play, 
+  Check, 
+  Clock, 
+  ChevronLeft, 
   BookOpen,
-  Video
+  Video 
 } from 'lucide-react';
 
 interface Video {
@@ -30,18 +30,14 @@ interface PlaylistViewProps {
 
 export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }: PlaylistViewProps) => {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
-
+  
   const completedCount = videos.filter(v => v.completed).length;
   const progress = (completedCount / videos.length) * 100;
   const totalDuration = videos.reduce((acc, video) => {
     const [minutes, seconds] = video.duration.split(':').map(Number);
     return acc + minutes * 60 + seconds;
   }, 0);
-
+  
   const formatTotalDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -52,8 +48,8 @@ export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
+        <Button 
+          variant="ghost" 
           onClick={onBack}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
         >
@@ -66,13 +62,13 @@ export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }
       <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
         <div className="flex gap-6">
           <div className="flex-shrink-0">
-            <img
-              src={thumbnail}
+            <img 
+              src={thumbnail} 
               alt={title}
               className="w-48 h-32 object-cover rounded-lg shadow-md"
             />
           </div>
-
+          
           <div className="flex-1 space-y-4">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">{title}</h1>
@@ -111,14 +107,14 @@ export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }
       {/* Video List */}
       <Card className="p-6">
         <h2 className="text-xl font-semibold text-foreground mb-4">Course Content</h2>
-
+        
         <div className="space-y-3">
           {videos.map((video, index) => (
             <div
               key={video.id}
               className={`group relative p-4 rounded-lg border transition-all duration-200 cursor-pointer ${
-                video.completed
-                  ? 'bg-course-progress/5 border-course-progress/20'
+                video.completed 
+                  ? 'bg-course-progress/5 border-course-progress/20' 
                   : 'bg-card border-border hover:bg-course-card-hover hover:border-primary/30'
               }`}
               onClick={() => onVideoSelect(video)}
@@ -128,8 +124,8 @@ export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }
               <div className="flex items-center gap-4">
                 {/* Video Number/Status */}
                 <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  video.completed
-                    ? 'bg-course-progress text-white'
+                  video.completed 
+                    ? 'bg-course-progress text-white' 
                     : 'bg-muted text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground'
                 }`}>
                   {video.completed ? <Check className="w-4 h-4" /> : index + 1}
@@ -137,8 +133,8 @@ export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }
 
                 {/* Thumbnail */}
                 <div className="relative flex-shrink-0">
-                  <img
-                    src={video.thumbnail}
+                  <img 
+                    src={video.thumbnail} 
                     alt={video.title}
                     className="w-20 h-12 object-cover rounded"
                   />

@@ -77,14 +77,18 @@ BEGIN
         WHERE
             user_id = p_user_id;
 
+        -- Update points and last activity date for a new completion
+        UPDATE profiles
+        SET points = COALESCE(points, 0) + v_points_earned,
+            last_activity_date = CURRENT_DATE
+        WHERE user_id = p_user_id;
+
         -- Check if the last activity was before today to update the streak
         IF v_profile_last_activity_date < CURRENT_DATE THEN
-            IF v_profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day')::date THEN
+            IF v_profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day') THEN
                 -- Increment streak if the last activity was yesterday
                 UPDATE profiles
                 SET
-                    points = COALESCE(points, 0) + v_points_earned,
-                    last_activity_date = CURRENT_DATE,
                     current_streak = v_profile_current_streak + 1,
                     longest_streak = GREATEST(COALESCE(longest_streak, 0), v_profile_current_streak + 1)
                 WHERE user_id = p_user_id;
@@ -92,17 +96,10 @@ BEGIN
                 -- Reset streak to 1 if the last activity was before yesterday
                 UPDATE profiles
                 SET
-                    points = COALESCE(points, 0) + v_points_earned,
-                    last_activity_date = CURRENT_DATE,
                     current_streak = 1,
                     longest_streak = GREATEST(COALESCE(longest_streak, 0), 1)
                 WHERE user_id = p_user_id;
             END IF;
-        ELSE
-             -- Already active today, just add points
-            UPDATE profiles
-            SET points = COALESCE(points, 0) + v_points_earned
-            WHERE user_id = p_user_id;
         END IF;
     END IF;
 
