@@ -2,19 +2,19 @@
 INSERT INTO storage.buckets (id, name, public) VALUES ('course-thumbnails', 'course-thumbnails', true);
 
 -- Create storage policies for course thumbnails
-CREATE POLICY "Anyone can view course thumbnails" 
-ON storage.objects 
-FOR SELECT 
+CREATE POLICY "Anyone can view course thumbnails"
+ON storage.objects
+FOR SELECT
 USING (bucket_id = 'course-thumbnails');
 
-CREATE POLICY "Authenticated users can upload course thumbnails" 
-ON storage.objects 
-FOR INSERT 
+CREATE POLICY "Authenticated users can upload course thumbnails"
+ON storage.objects
+FOR INSERT
 WITH CHECK (bucket_id = 'course-thumbnails' AND auth.uid() IS NOT NULL);
 
-CREATE POLICY "Users can update course thumbnails" 
-ON storage.objects 
-FOR UPDATE 
+CREATE POLICY "Users can update course thumbnails"
+ON storage.objects
+FOR UPDATE
 USING (bucket_id = 'course-thumbnails' AND auth.uid() IS NOT NULL);
 
 -- Add YouTube playlist ID and channel info to courses table
@@ -44,8 +44,8 @@ BEGIN
     SELECT EXISTS (
         SELECT 1
         FROM user_progress
-        WHERE user_id = p_user_id 
-          AND lesson_id = p_lesson_id 
+        WHERE user_id = p_user_id
+          AND lesson_id = p_lesson_id
           AND watch_percentage >= 90
     )
     INTO v_is_already_completed;
@@ -79,26 +79,25 @@ BEGIN
 
         -- Update points unconditionally for a new completion
         UPDATE profiles
-        SET points = COALESCE(points, 0) + v_points_earned
+        SET points = COALESCE(points, 0) + v_points_earned,
+            last_activity_date = CURRENT_DATE
         WHERE user_id = p_user_id;
-        
+
         -- Check if the last activity was before today to update the streak
         IF v_profile_last_activity_date < CURRENT_DATE THEN
             IF v_profile_last_activity_date = (CURRENT_DATE - INTERVAL '1 day') THEN
                 -- Increment streak if the last activity was yesterday
-                UPDATE profiles 
-                SET 
-                    current_streak = v_profile_current_streak + 1, 
-                    longest_streak = GREATEST(COALESCE(longest_streak, 0), v_profile_current_streak + 1),
-                    last_activity_date = CURRENT_DATE
+                UPDATE profiles
+                SET
+                    current_streak = v_profile_current_streak + 1,
+                    longest_streak = GREATEST(COALESCE(longest_streak, 0), v_profile_current_streak + 1)
                 WHERE user_id = p_user_id;
             ELSE
                 -- Reset streak to 1 if the last activity was before yesterday
-                UPDATE profiles 
-                SET 
-                    current_streak = 1, 
-                    longest_streak = GREATEST(COALESCE(longest_streak, 0), 1),
-                    last_activity_date = CURRENT_DATE
+                UPDATE profiles
+                SET
+                    current_streak = 1,
+                    longest_streak = GREATEST(COALESCE(longest_streak, 0), 1)
                 WHERE user_id = p_user_id;
             END IF;
         END IF;
