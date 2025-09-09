@@ -77,7 +77,6 @@ BEGIN
         WHERE
             user_id = p_user_id;
 
-        -- Update points and last activity date for a new completion
         UPDATE profiles
         SET points = COALESCE(points, 0) + v_points_earned,
             last_activity_date = CURRENT_DATE
