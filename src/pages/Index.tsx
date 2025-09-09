@@ -153,7 +153,7 @@ const Index = () => {
 
         const progress = lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0;
 
-        const courseType = course.youtube_playlist_id ? 'playlist' : 'video';
+        const courseType: 'video' | 'playlist' = course.youtube_playlist_id ? 'playlist' : 'video';
 
         const singleVideo = (courseType === 'video' && lessons.length > 0) ? videos[0] : null;
 
@@ -235,7 +235,7 @@ const Index = () => {
 
   const handleVideoComplete = async (videoId: string, watchPercentage: number, videoTitle: string) => {
     if (!user || !selectedCourse) return;
-  
+
     try {
       const { data, error } = await supabase.functions.invoke('youtube-integration', {
         body: {
@@ -249,12 +249,12 @@ const Index = () => {
         console.error("Function invoke error:", error);
         throw error;
       }
-  
+
       await loadUserData();
       await loadCourses();
-  
+
       const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
-  
+
       if (updatedProfile) {
         const celebrationInfo = {
           pointsEarned: 100,
@@ -263,11 +263,11 @@ const Index = () => {
           videoTitle,
           watchPercentage
         };
-  
+
         setCelebrationData(celebrationInfo);
         setShowCelebration(true);
       }
-  
+
     } catch (error) {
       console.error('Error marking video as complete:', error);
       toast({
