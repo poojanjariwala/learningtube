@@ -289,7 +289,7 @@ export const VideoPlayer = ({
           </div>
         </div>
 
-        <div className={`space-y-4 ${isMobile ? 'order-first' : ''}`}>
+        <div className="space-y-4">
           <VideoNotes lessonId={video.id} courseId={video.course_id || ''} currentTime={currentVideoTime} />
 
           {localPlaylist && localPlaylist.length > 0 && (
