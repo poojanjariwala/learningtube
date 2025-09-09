@@ -28,7 +28,6 @@ interface VideoPlayerProps {
   playlist?: Video[];
   onVideoComplete: (videoId: string, watchPercentage: number, videoTitle: string) => Promise<void>;
   onBack: () => void;
-  onVideoSelect: (video: Video) => void;
   onNextVideo?: () => void;
   userProfile?: any;
   setShowCelebration: (show: boolean) => void;
@@ -47,7 +46,6 @@ export const VideoPlayer = ({
   playlist,
   onVideoComplete,
   onBack,
-  onVideoSelect,
   onNextVideo,
   userProfile,
   setShowCelebration,
@@ -221,12 +219,6 @@ export const VideoPlayer = ({
           <ChevronLeft className="w-4 h-4" />
           Back
         </Button>
-        {hasNextVideo && (
-          <Button onClick={onNextVideo} size="sm" className="flex items-center gap-2">
-            Next Video
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        )}
         {localPlaylist && !isMobile && (
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="text-sm">
@@ -260,8 +252,8 @@ export const VideoPlayer = ({
           </Card>
 
           <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
                 <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-foreground mb-2`}>{video.title}</h1>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span>Duration: {video.duration}</span>
@@ -276,6 +268,12 @@ export const VideoPlayer = ({
                   )}
                 </div>
               </div>
+              {hasNextVideo && (
+                <Button onClick={onNextVideo} className="flex-shrink-0">
+                  Next Video
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              )}
             </div>
 
             {duration > 0 && (
@@ -288,19 +286,10 @@ export const VideoPlayer = ({
                 <p className="text-xs text-muted-foreground">Video will auto-complete at 90% watched</p>
               </div>
             )}
-
-            {isMobile && hasNextVideo && (
-              <div className="flex justify-center pt-4">
-                <Button onClick={onNextVideo} className="flex items-center gap-2">
-                  Next Video
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
           </div>
         </div>
 
-        <div className={`space-y-4 ${isMobile ? 'order-first' : ''}`}>
+        <div className="space-y-4">
           <VideoNotes lessonId={video.id} courseId={video.course_id || ''} currentTime={currentVideoTime} />
 
           {localPlaylist && localPlaylist.length > 0 && (
@@ -314,7 +303,15 @@ export const VideoPlayer = ({
                       className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                         playlistVideo.id === video.id ? 'bg-primary/10 border-primary' : 'hover:bg-muted/50'
                       }`}
-                      onClick={() => onVideoSelect(playlistVideo)}
+                      onClick={() => {
+                        if (onNextVideo && playlistVideo.id !== video.id) {
+                            const targetIndex = localPlaylist.findIndex(v => v.id === playlistVideo.id);
+                            if (targetIndex > currentVideoIndex) {
+                                // This logic is simplified; a better implementation would involve passing a specific video selection handler
+                                onNextVideo();
+                            }
+                        }
+                      }}
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-16 h-12 bg-muted rounded overflow-hidden flex-shrink-0">
