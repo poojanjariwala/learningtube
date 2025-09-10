@@ -371,6 +371,182 @@ export type Database = {
           },
         ]
       }
+      quizzes: {
+        Row: {
+          id: string;
+          course_id: string;
+          lesson_id: string | null;
+          title: string;
+          description: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_id: string;
+          lesson_id?: string | null;
+          title: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          course_id?: string;
+          lesson_id?: string | null;
+          title?: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_course_id_fkey";
+            columns: ["course_id"];
+            referencedRelation: "courses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "quizzes_lesson_id_fkey";
+            columns: ["lesson_id"];
+            referencedRelation: "lessons";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      questions: {
+        Row: {
+          id: string;
+          quiz_id: string;
+          question_text: string;
+          order_index: number;
+        };
+        Insert: {
+          id?: string;
+          quiz_id: string;
+          question_text: string;
+          order_index?: number;
+        };
+        Update: {
+          id?: string;
+          quiz_id?: string;
+          question_text?: string;
+          order_index?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "questions_quiz_id_fkey";
+            columns: ["quiz_id"];
+            referencedRelation: "quizzes";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      options: {
+        Row: {
+          id: string;
+          question_id: string;
+          option_text: string;
+          is_correct: boolean;
+        };
+        Insert: {
+          id?: string;
+          question_id: string;
+          option_text: string;
+          is_correct?: boolean;
+        };
+        Update: {
+          id?: string;
+          question_id?: string;
+          option_text?: string;
+          is_correct?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "options_question_id_fkey";
+            columns: ["question_id"];
+            referencedRelation: "questions";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      quiz_attempts: {
+        Row: {
+          id: string;
+          user_id: string;
+          quiz_id: string;
+          score: number | null;
+          started_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          quiz_id: string;
+          score?: number | null;
+          started_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          quiz_id?: string;
+          score?: number | null;
+          started_at?: string;
+          completed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey";
+            columns: ["quiz_id"];
+            referencedRelation: "quizzes";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      user_answers: {
+        Row: {
+          id: string;
+          attempt_id: string;
+          question_id: string;
+          selected_option_id: string;
+          is_correct: boolean | null;
+        };
+        Insert: {
+          id?: string;
+          attempt_id: string;
+          question_id: string;
+          selected_option_id: string;
+          is_correct?: boolean | null;
+        };
+        Update: {
+          id?: string;
+          attempt_id?: string;
+          question_id?: string;
+          selected_option_id?: string;
+          is_correct?: boolean | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_answers_attempt_id_fkey";
+            columns: ["attempt_id"];
+            referencedRelation: "quiz_attempts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_answers_question_id_fkey";
+            columns: ["question_id"];
+            referencedRelation: "questions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "user_answers_selected_option_id_fkey";
+            columns: ["selected_option_id"];
+            referencedRelation: "options";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     }
     Views: {
       [_ in never]: never
