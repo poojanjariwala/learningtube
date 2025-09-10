@@ -1,110 +1,186 @@
--- Fix leaderboard to show all users (remove user restriction)
-DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
-
-CREATE POLICY "Anyone can view all profiles for leaderboard" 
-ON profiles 
-FOR SELECT 
-USING (true);
-
--- Create notes table for video notes feature
-CREATE TABLE public.notes (
+-- Create quizzes table to store quiz metadata
+CREATE TABLE public.quizzes (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL,
-  lesson_id UUID NOT NULL,
-  course_id UUID NOT NULL,
-  content TEXT NOT NULL,
-  timestamp_seconds INTEGER DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-);
-
--- Enable RLS on notes
-ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
-
--- Create policies for notes
-CREATE POLICY "Users can view their own notes" 
-ON public.notes 
-FOR SELECT 
-USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can create their own notes" 
-ON public.notes 
-FOR INSERT 
-WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own notes" 
-ON public.notes 
-FOR UPDATE 
-USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own notes" 
-ON public.notes 
-FOR DELETE 
-USING (auth.uid() = user_id);
-
--- Create user playlists table
-CREATE TABLE public.user_playlists (
-  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL,
-  name TEXT NOT NULL,
+  course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  lesson_id UUID REFERENCES public.lessons(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
   description TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
--- Enable RLS on user playlists
-ALTER TABLE public.user_playlists ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on quizzes
+ALTER TABLE public.quizzes ENABLE ROW LEVEL SECURITY;
 
--- Create policies for user playlists
-CREATE POLICY "Users can manage their own playlists" 
-ON public.user_playlists 
-FOR ALL 
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
-
--- Create playlist lessons table (many-to-many relationship)
-CREATE TABLE public.playlist_lessons (
-  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  playlist_id UUID NOT NULL REFERENCES user_playlists(id) ON DELETE CASCADE,
-  lesson_id UUID NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
-  order_index INTEGER NOT NULL DEFAULT 0,
-  added_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  UNIQUE(playlist_id, lesson_id)
+-- Create policies for quizzes
+CREATE POLICY "Users can view quizzes for their courses"
+ON public.quizzes
+FOR SELECT
+USING (
+  course_id IN (
+    SELECT id FROM public.courses WHERE instructor_id IN (
+      SELECT id FROM public.profiles WHERE user_id = auth.uid()
+    )
+  )
 );
 
--- Enable RLS on playlist lessons
-ALTER TABLE public.playlist_lessons ENABLE ROW LEVEL SECURITY;
-
--- Create policies for playlist lessons
-CREATE POLICY "Users can manage their playlist lessons" 
-ON public.playlist_lessons 
-FOR ALL 
+CREATE POLICY "Instructors can manage quizzes for their courses"
+ON public.quizzes
+FOR ALL
 USING (
-  playlist_id IN (
-    SELECT id FROM user_playlists WHERE user_id = auth.uid()
+  course_id IN (
+    SELECT id FROM public.courses WHERE instructor_id IN (
+      SELECT id FROM public.profiles WHERE user_id = auth.uid()
+    )
   )
 )
 WITH CHECK (
-  playlist_id IN (
-    SELECT id FROM user_playlists WHERE user_id = auth.uid()
+  course_id IN (
+    SELECT id FROM public.courses WHERE instructor_id IN (
+      SELECT id FROM public.profiles WHERE user_id = auth.uid()
+    )
   )
 );
 
--- Create triggers for updated_at
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SET search_path = public;
+-- Create questions table
+CREATE TABLE public.questions (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  quiz_id UUID NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
+  question_text TEXT NOT NULL,
+  order_index INTEGER NOT NULL DEFAULT 0
+);
 
-CREATE TRIGGER update_notes_updated_at
-BEFORE UPDATE ON public.notes
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
+-- Enable RLS on questions
+ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 
-CREATE TRIGGER update_user_playlists_updated_at
-BEFORE UPDATE ON public.user_playlists
+-- Create policies for questions
+CREATE POLICY "Users can view questions for quizzes they can access"
+ON public.questions
+FOR SELECT
+USING (
+  quiz_id IN (
+    SELECT id FROM public.quizzes
+  )
+);
+
+CREATE POLICY "Instructors can manage questions for their quizzes"
+ON public.questions
+FOR ALL
+USING (
+  quiz_id IN (
+    SELECT id FROM public.quizzes WHERE course_id IN (
+      SELECT id FROM public.courses WHERE instructor_id IN (
+        SELECT id FROM public.profiles WHERE user_id = auth.uid()
+      )
+    )
+  )
+)
+WITH CHECK (
+  quiz_id IN (
+    SELECT id FROM public.quizzes WHERE course_id IN (
+      SELECT id FROM public.courses WHERE instructor_id IN (
+        SELECT id FROM public.profiles WHERE user_id = auth.uid()
+      )
+    )
+  )
+);
+
+-- Create options table
+CREATE TABLE public.options (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  question_id UUID NOT NULL REFERENCES public.questions(id) ON DELETE CASCADE,
+  option_text TEXT NOT NULL,
+  is_correct BOOLEAN NOT NULL DEFAULT false
+);
+
+-- Enable RLS on options
+ALTER TABLE public.options ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for options
+CREATE POLICY "Users can view options for questions they can access"
+ON public.options
+FOR SELECT
+USING (
+  question_id IN (
+    SELECT id FROM public.questions
+  )
+);
+
+CREATE POLICY "Instructors can manage options for their questions"
+ON public.options
+FOR ALL
+USING (
+  question_id IN (
+    SELECT id FROM public.questions WHERE quiz_id IN (
+      SELECT id FROM public.quizzes WHERE course_id IN (
+        SELECT id FROM public.courses WHERE instructor_id IN (
+          SELECT id FROM public.profiles WHERE user_id = auth.uid()
+        )
+      )
+    )
+  )
+)
+WITH CHECK (
+  question_id IN (
+    SELECT id FROM public.questions WHERE quiz_id IN (
+      SELECT id FROM public.quizzes WHERE course_id IN (
+        SELECT id FROM public.courses WHERE instructor_id IN (
+          SELECT id FROM public.profiles WHERE user_id = auth.uid()
+        )
+      )
+    )
+  )
+);
+
+-- Create quiz_attempts table
+CREATE TABLE public.quiz_attempts (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  quiz_id UUID NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
+  score INTEGER,
+  started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Enable RLS on quiz_attempts
+ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for quiz_attempts
+CREATE POLICY "Users can manage their own quiz attempts"
+ON public.quiz_attempts
+FOR ALL
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- Create user_answers table
+CREATE TABLE public.user_answers (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  attempt_id UUID NOT NULL REFERENCES public.quiz_attempts(id) ON DELETE CASCADE,
+  question_id UUID NOT NULL REFERENCES public.questions(id) ON DELETE CASCADE,
+  selected_option_id UUID NOT NULL REFERENCES public.options(id) ON DELETE CASCADE,
+  is_correct BOOLEAN
+);
+
+-- Enable RLS on user_answers
+ALTER TABLE public.user_answers ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for user_answers
+CREATE POLICY "Users can manage their own answers"
+ON public.user_answers
+FOR ALL
+USING (
+  attempt_id IN (
+    SELECT id FROM public.quiz_attempts WHERE user_id = auth.uid()
+  )
+)
+WITH CHECK (
+  attempt_id IN (
+    SELECT id FROM public.quiz_attempts WHERE user_id = auth.uid()
+  )
+);
+
+-- Create trigger for updated_at on quizzes
+CREATE TRIGGER update_quizzes_updated_at
+BEFORE UPDATE ON public.quizzes
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
