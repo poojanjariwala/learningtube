@@ -9,8 +9,7 @@ import {
   Clock,
   ChevronLeft,
   BookOpen,
-  Video,
-  FileQuestion
+  Video
 } from 'lucide-react';
 
 interface Video {
@@ -21,22 +20,15 @@ interface Video {
   completed: boolean;
 }
 
-interface Quiz {
-  id: string;
-  title: string;
-}
-
 interface PlaylistViewProps {
   title: string;
   thumbnail: string;
   videos: Video[];
-  quizzes?: Quiz[];
   onVideoSelect: (video: Video) => void;
-  onQuizSelect: (quizId: string) => void;
   onBack: () => void;
 }
 
-export const PlaylistView = ({ title, thumbnail, videos, quizzes = [], onVideoSelect, onQuizSelect, onBack }: PlaylistViewProps) => {
+export const PlaylistView = ({ title, thumbnail, videos, onVideoSelect, onBack }: PlaylistViewProps) => {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
 
   useEffect(() => {
@@ -116,7 +108,7 @@ export const PlaylistView = ({ title, thumbnail, videos, quizzes = [], onVideoSe
         </div>
       </Card>
 
-      {/* Content List */}
+      {/* Video List */}
       <Card className="p-6">
         <h2 className="text-xl font-semibold text-foreground mb-4">Course Content</h2>
 
@@ -187,31 +179,6 @@ export const PlaylistView = ({ title, thumbnail, videos, quizzes = [], onVideoSe
                   </Button>
                 </div>
               </div>
-            </div>
-          ))}
-          
-          {quizzes.map((quiz) => (
-            <div
-              key={quiz.id}
-              className="group relative p-4 rounded-lg border transition-all duration-200 cursor-pointer bg-card border-border hover:bg-course-card-hover hover:border-primary/30"
-              onClick={() => onQuizSelect(quiz.id)}
-            >
-                <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium bg-muted text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground">
-                        <FileQuestion className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className="font-medium mb-1 line-clamp-2 text-foreground group-hover:text-primary">
-                            {quiz.title}
-                        </h3>
-                         <Badge variant="secondary">Quiz</Badge>
-                    </div>
-                    <div className="flex-shrink-0">
-                        <Button size="sm">
-                            Take Quiz
-                        </Button>
-                    </div>
-                </div>
             </div>
           ))}
         </div>
