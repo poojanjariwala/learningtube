@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CelebrationModal } from '@/components/CelebrationModal';
+import { QuizPlayer } from '@/components/QuizPlayer';
+import { QuizResult } from '@/components/QuizResult';
 
 interface Video {
   id: string;
@@ -47,6 +49,7 @@ interface Course {
   videoCount?: number;
   progress: number;
   videos?: Video[];
+  quizzes?: any[];
 }
 
 const Index = () => {
@@ -54,9 +57,11 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'player' | 'playlist' | 'profile'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'player' | 'playlist' | 'profile' | 'quiz' | 'quiz-result'>('dashboard');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [selectedQuiz, setSelectedQuiz] = useState<string | null>(null);
+  const [lastAttemptId, setLastAttemptId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isMobile = useIsMobile();
@@ -124,7 +129,8 @@ const Index = () => {
           user_progress (
             lesson_id,
             watch_percentage
-          )
+          ),
+          quizzes (id, title)
         `)
         .eq('instructor_id', profile.id)
         .order('created_at', { ascending: false });
@@ -165,7 +171,8 @@ const Index = () => {
           duration: `${course.duration_minutes}m`,
           videoCount: lessons.length,
           progress,
-          videos: courseType === 'playlist' ? videos : (singleVideo ? [singleVideo] : [])
+          videos: courseType === 'playlist' ? videos : (singleVideo ? [singleVideo] : []),
+          quizzes: course.quizzes,
         };
       }) || [];
 
@@ -233,6 +240,16 @@ const Index = () => {
     setCurrentView('player');
   };
 
+  const handleQuizSelect = (quizId: string) => {
+    setSelectedQuiz(quizId);
+    setCurrentView('quiz');
+  };
+
+  const handleQuizComplete = (attemptId: string) => {
+    setLastAttemptId(attemptId);
+    setCurrentView('quiz-result');
+  };
+
   const handleVideoComplete = async (videoId: string, watchPercentage: number, videoTitle: string) => {
     if (!user || !selectedCourse) return;
 
@@ -284,6 +301,8 @@ const Index = () => {
     setCurrentView('dashboard');
     setSelectedCourse(null);
     setSelectedVideo(null);
+    setSelectedQuiz(null);
+    setLastAttemptId(null);
   };
 
   const handleProfileView = () => {
@@ -343,12 +362,22 @@ const Index = () => {
         videos={selectedCourse.videos!}
         onVideoSelect={handleVideoSelect}
         onBack={handleBack}
+        quizzes={selectedCourse.quizzes}
+        onQuizSelect={handleQuizSelect}
       />
     );
   }
 
   if (currentView === 'profile') {
     return <ProfilePage onBack={handleBack} />;
+  }
+
+  if (currentView === 'quiz' && selectedQuiz) {
+    return <QuizPlayer quizId={selectedQuiz} onBack={handleBack} onQuizComplete={handleQuizComplete} />;
+  }
+  
+  if (currentView === 'quiz-result' && lastAttemptId) {
+    return <QuizResult attemptId={lastAttemptId} onBack={handleBack} onRetakeQuiz={() => handleQuizSelect(selectedQuiz!)} />;
   }
 
   return (
